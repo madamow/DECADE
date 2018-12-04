@@ -762,7 +762,7 @@ def sigmaClipZP(args):
             WAVG_MAG_PSF_1       =data['WAVG_MAG_PSF_1']
             MAG_2                =data['MAG_2']
             delt_mag_data        =MAG_2 -WAVG_MAG_PSF_1 -25.0
-            filtered_data        =sigma_clip(delt_mag_data, 3, 3, np.mean, copy=True)
+            filtered_data        =sigma_clip(delt_mag_data, sigma=3, iters=3, cenfunc=np.mean, copy=True)
             NumStarsClipped      =(filtered_data).count()
             NumStarsAll          =len(filtered_data)
 
@@ -883,7 +883,7 @@ def sigmaClipZPallCCDs(args):
 	WAVG_MAG_PSF_1       =data['WAVG_MAG_PSF_1']
 	MAG_2                =data['MAG_2']
 	delt_mag_data        =MAG_2 -WAVG_MAG_PSF_1 -25.0
-	filtered_data        =sigma_clip(delt_mag_data, 3, 3, np.mean, copy=True)
+	filtered_data        =sigma_clip(delt_mag_data, sigma=3, iters=3, cenfunc=np.mean, copy=True)
 	NumStarsClipped      =(filtered_data).count()
 	NumStarsAll          =len(filtered_data)
 
