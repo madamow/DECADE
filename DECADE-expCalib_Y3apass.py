@@ -1,8 +1,5 @@
 #/usr/bin/env python
 #
-# Version from 10/09/2017 according to Sahar rounding was changed from 357 to 350.
-#
-#
 """
     expCalib.py THIS VERSION ONLY works for Carina2-3
     Express Calibration, 
@@ -20,14 +17,16 @@
     
     """
 import os
-import time
 import datetime
 import numpy as np
+import argparse
+import time
+import sys
+import healpy as hp
+import pandas as pd
 ##################################
 
 def main():
-    import argparse
-    import time
     print " Start with DECADE-expCalib.py \n"
     """Create command line arguments"""
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -38,106 +37,102 @@ def main():
     parser.add_argument('--reqnum', help='reqnum is queried', default=3505, type=str)
     parser.add_argument('--attnum', help='attnum is queried', default=1, type=int)
     parser.add_argument('--magType', help='mag type to use (mag_psf, mag_auto, mag_aper_8, ...)', default='mag_psf')
-    parser.add_argument('--sex_mag_zeropoint', help='default sextractor zeropoint to use to convert fluxes to sextractor mags (mag_sex = -2.5log10(flux) + sex_mag_zeropoint)', type=float, default=25.0)
+    parser.add_argument('--sex_mag_zeropoint', 
+                        help='default sextractor zeropoint to use to convert fluxes to sextractor mags (mag_sex = -2.5log10(flux) + sex_mag_zeropoint)', 
+                        type=float, default=25.0)
     parser.add_argument('--verbose', help='verbosity level of output to screen (0,1,2,...)', default=0, type=int)
     parser.add_argument('--debug', help='debugging option', dest='debug', action='store_true', default=False)
                         
     args = parser.parse_args()
-                        
+                    
     if args.verbose > 0: print args
-
-#    sys.exit()
-
-    #--
-    #Get FITS TABLE ONLY if needed
-#    status = Wget_data_home(args)
-
-    #
+   
+    # Create all *std files
+    getallccdfromAPASS92MASS(args)
+    
     #-- ADDED NEW
-    #GET STD from APASS-DR9 and 2MASS in DES-footprint
-    #status= getallccdfromAPASS9(args)
-
-    #-- ADDED NEW
-    #GET STD from APASS-DR9 and 2MASS FULL SKY
-    status= getallccdfromAPASS92MASS(args)
-
-    #-- ADDED NEW
-    status = doset(args)
+    doset(args)
+    exit()
 
     #WHEN NEEDED
     #plot ra,dec of Sex-vs Y2Q1 for each CCD
     if args.verbose >0 :
-        status = plotradec_sexvsY2Q1(args)
+        plotradec_sexvsY2Q1(args)
 
-    #--
     #Estimate 3sigma Clipped Zeropoint for each CCD
-    status = sigmaClipZP(args)
+    sigmaClipZP(args)
 
     #-
-    status=sigmaClipZPallCCDs(args)
+    sigmaClipZPallCCDs(args)
 
     #-
-    status=ZP_OUTLIERS(args)
+    ZP_OUTLIERS(args)
 
     #--
-    status=Onefile(args)
+    Onefile(args)
 
     #--
     #plot ra,dec of matched stars for ALL CCDs
     " Comment this line for grid production "
-#    status = plotradec_ZP(args)
+#    plotradec_ZP(args)
 
+def read_catlist(args):
+    # Open catalog created with make_red_catlist.py 
+    catlistFile="""D%08d_r%sp%02d_red_catlist.csv""" % (args.expnum, str(args.reqnum), args.attnum) #  name of file to look for
+
+    # Check if file exists, exit if it does not                                                                                                                                                                
+    print "Looking for file %s ...\n" % catlistFile
+    if not os.path.exists(catlistFile):
+        print '%s does not seem to exist... exiting now...' % catlistFile
+        sys.exit(1)
+    else:
+        print " ... and it is here!\n"
+
+    # Read and return the catalog  
+    return catlistFile, pd.read_csv(catlistFile)
+
+def get_corners(dat, inx, off=0.):
+    minra = min(dat['RA_CENT'][inx], dat['RAC1'][inx], dat['RAC2'][inx], dat['RAC3'][inx], dat['RAC4'][inx]) - off
+    maxra = max(dat['RA_CENT'][inx], dat['RAC1'][inx], dat['RAC2'][inx], dat['RAC3'][inx], dat['RAC4'][inx]) + off
+    mindec = min(dat['DEC_CENT'][inx], dat['DECC1'][inx], dat['DECC2'][inx], dat['DECC3'][inx], dat['DECC4'][inx]) - off
+    maxdec = max(dat['DEC_CENT'][inx], dat['DECC1'][inx], dat['DECC2'][inx], dat['DECC3'][inx], dat['DECC4'][inx]) + off
+
+    return minra, maxra, mindec, maxdec
 
 
 ##################################
 # Get data from  PROD tables EXPOSURE IMAGE, WDF, and CATALOG,
 # then Convert the Fits table to csv and save it
-
-
 def doset(args):
-    import os
     import csv
-    import time
-    import healpy as hp    
-    import sys
     
     if args.verbose >0 : print args
 
-    catlistFile="D%08d_r%sp%02d_red_catlist.csv" % (args.expnum,str(args.reqnum),args.attnum)
-#    print " looking for file %s in local directory \n" % catlistFile
-    if not os.path.exists(catlistFile):
-        print '%s does not seem to exist... exiting now...' % catlistFile
-        sys.exit(1)
-#    print " file %s found \n" %catlistFile
-    data=np.genfromtxt(catlistFile,dtype=None,delimiter=',',names=True)
-#    print " befor loop \n"    
+    catlistFile, data = read_catlist(args)
+
     for i in range(data['FILENAME'].size):
         if os.path.isfile(data['FILENAME'][i]):
             Read_Sexcatalogfitstocsv(args,data['FILENAME'][i],data['BAND'][i])
-
-            minra=min(data['RA_CENT'][i],data['RAC1'][i],data['RAC2'][i],data['RAC3'][i],data['RAC4'][i])
-            maxra=max(data['RA_CENT'][i],data['RAC1'][i],data['RAC2'][i],data['RAC3'][i],data['RAC4'][i])
-            mindec=min(data['DEC_CENT'][i],data['DECC1'][i],data['DECC2'][i],data['DECC3'][i],data['DECC4'][i])
-            maxdec=max(data['DEC_CENT'][i],data['DECC1'][i],data['DECC2'][i],data['DECC3'][i],data['DECC4'][i])
+            
+            minra, maxra, mindec, maxdec = get_corners(data, i, off=0.)
 
             rac  = data['RA_CENT'][i]
             decc = data['DEC_CENT'][i]
             
-            desipixc=getipix(128,data['RA_CENT'][i], data['DEC_CENT'][i])
-            desipix1=getipix(128,data['RAC1'][i],data['DECC1'][i])
-            desipix2=getipix(128,data['RAC2'][i],data['DECC2'][i])
-            desipix3=getipix(128,data['RAC3'][i],data['DECC3'][i])
-            desipix4=getipix(128,data['RAC4'][i],data['DECC4'][i])
+            desipixc = getipix(128, data['RA_CENT'][i], data['DEC_CENT'][i])
+            desipix1 = getipix(128, data['RAC1'][i], data['DECC1'][i])
+            desipix2 = getipix(128, data['RAC2'][i], data['DECC2'][i])
+            desipix3 = getipix(128, data['RAC3'][i], data['DECC3'][i])
+            desipix4 = getipix(128, data['RAC4'][i], data['DECC4'][i])
 
-            desipix12=getipix(128,data['RAC1'][i],data['DEC_CENT'][i])
-            desipix23=getipix(128,data['RA_CENT'][i],data['DECC2'][i])
-            desipix34=getipix(128,data['RAC3'][i],data['DEC_CENT'][i])
-            desipix14=getipix(128,data['RA_CENT'][i],data['DECC4'][i]) 
+            desipix12 = getipix(128, data['RAC1'][i], data['DEC_CENT'][i])
+            desipix23 = getipix(128, data['RA_CENT'][i], data['DECC2'][i])
+            desipix34 = getipix(128, data['RAC3'][i], data['DEC_CENT'][i])
+            desipix14 = getipix(128, data['RA_CENT'][i], data['DECC4'][i]) 
 
             desipixlist= desipixc,desipix1,desipix2,desipix3,desipix4,desipix12,desipix23,desipix34,desipix14
-            desipixlist=uniqlist(desipixlist)
-        
-            ra1=[];ra2=[];dec1=[];dec2=[]
+            desipixlist = uniqlist(desipixlist)
+            
             matchlistout="""%s_match.csv""" % (data['FILENAME'][i])
             matchlistout = args.outdir+'/'+matchlistout.split('/')[-1]
             objlistFile ="""%s_Obj.csv"""   % (data['FILENAME'][i])
@@ -153,25 +148,17 @@ def doset(args):
                 print '%s does not seem to exist... exiting now...' % stdlistFile
                 sys.exit(1)
 
-            stdracol=1
-            stddeccol=2
-            obsracol=1
-            obsdeccol=2 
-            matchTolArcsec=1.0 #1.0arcsec
-            verbose=2
-            matchSortedStdwithObsCats(stdlistFile,objlistFile,matchlistout,stdracol,stddeccol,obsracol,obsdeccol,matchTolArcsec,verbose)
-    print "after the loop \n"
-            
-
-    return 0
+            matchSortedStdwithObsCats(stdlistFile, objlistFile, matchlistout,
+                                      stdracol=1, stddeccol=2,
+                                      obsracol=1, obsdeccol=2,
+                                      matchTolArcsec=1.0, verbose=2)
+ 
       
 ##################################
 #get_data_home for NOW it is for all CCDs:
 #
 def Wget_data_home(args):
     import csv
-#    from despyserviceaccess import serviceaccess
-    import os
     import glob
     import sys
 
@@ -186,7 +173,6 @@ def Wget_data_home(args):
         return 1
     else:
         print "relevant cat files are not in directory... wgetting them from archive..."
-
         sys.exit(1)
     
 ##################################
@@ -196,7 +182,6 @@ def Read_Sexcatalogfitstocsv(args,fitsname,band):
 
     import fitsio
     import string
-    import numpy as np
     import math
     import csv
  
@@ -274,108 +259,93 @@ def uniqlist(seq):
 #filters are u_des,g_des,r_des,i_des,z_des,Y_des
 #################################
 def getallccdfromAPASS92MASS(args):
-    import csv
-    import numpy as np
     import pandas as pd
-    import string,sys,os,glob
+    import string, glob
 
-    #print NEED Round RA
-    catlistFile="""D%08d_r%sp%02d_red_catlist.csv""" % (args.expnum,str(args.reqnum),args.attnum)
-    print "looking for file %s \n" % catlistFile
-    if not os.path.exists(catlistFile):
-        print '%s does not seem to exist... exiting now...' % catlistFile
-        sys.exit(1)
-#    print " found file %s \n" % catlistFile
-    data=pd.read_csv(catlistFile)
-#    print " the file is read  unpack data \n"
-    BAND=data['BAND'][0]
-    data['desipixc']=getipix(8,data['RA_CENT'], data['DEC_CENT'])
-    data['desipix1']=getipix(8,data['RAC1'],data['DECC1']) 
-    data['desipix2']=getipix(8,data['RAC2'],data['DECC2']) 
-    data['desipix3']=getipix(8,data['RAC3'],data['DECC3']) 
-    data['desipix4']=getipix(8,data['RAC4'],data['DECC4']) 
+    # Read the catalog  
+    catlistFile, data = read_catlist(args)
+    
+    # Get band 
+    BAND = data['BAND'][0]
+    
+    # Transform sky coordinates to pixel cooridnates 
+    data['desipixc'] = getipix(8, data['RA_CENT'], data['DEC_CENT'])
 
-    data['desipix12']=getipix(8,data['RAC1'],data['DEC_CENT']) 
-    data['desipix23']=getipix(8,data['RA_CENT'],data['DECC2']) 
-    data['desipix34']=getipix(8,data['RAC3'],data['DEC_CENT']) 
-    data['desipix14']=getipix(8,data['RA_CENT'],data['DECC4']) 
-#    print " first step \n"
-    desipixlist= pd.unique(data[['desipixc','desipix1','desipix2','desipix3','desipix4','desipix12','desipix23','desipix34','desipix14']].values.ravel())
-#    print desipixlist
-    desipixlist=uniqlist(desipixlist)
+    data['desipix1'] = getipix(8, data['RAC1'], data['DECC1']) 
+    data['desipix2'] = getipix(8, data['RAC2'], data['DECC2']) 
+    data['desipix3'] = getipix(8, data['RAC3'], data['DECC3']) 
+    data['desipix4'] = getipix(8, data['RAC4'], data['DECC4']) 
+
+    data['desipix12'] = getipix(8, data['RAC1'], data['DEC_CENT']) 
+    data['desipix23'] = getipix(8, data['RA_CENT'], data['DECC2']) 
+    data['desipix34'] = getipix(8, data['RAC3'], data['DEC_CENT']) 
+    data['desipix14'] = getipix(8, data['RA_CENT'], data['DECC4']) 
+ 
+    # Get unique values for desipix__
+    desipixlist = pd.unique(data[['desipixc','desipix1','desipix2','desipix3','desipix4','desipix12','desipix23','desipix34','desipix14']].values.ravel())
+    
+    # RA for standards
     stdRA = np.std(data['RA_CENT'])
+    
+    # Round ra ??? why?
     if ( stdRA >20 ) :
-        data['RA_CENT']=[roundra(x) for x in data['RA_CENT']]
-        data['RAC1']   =[roundra(x) for x in data['RAC1']]
-        data['RAC2']   =[roundra(x) for x in data['RAC2']]
-        data['RAC3']   =[roundra(x) for x in data['RAC3']]
-        data['RAC4']   =[roundra(x) for x in data['RAC4']]
+        data['RA_CENT'] = [roundra(x) for x in data['RA_CENT']]
+        data['RAC1']    = [roundra(x) for x in data['RAC1']]
+        data['RAC2']    = [roundra(x) for x in data['RAC2']]
+        data['RAC3']    = [roundra(x) for x in data['RAC3']]
+        data['RAC4']    = [roundra(x) for x in data['RAC4']]
 
-#    print " stdRA=%f \n" % stdRA    
-#    if ( stdRA <=20 ) :
-#        print " Something goes wrong  stdRA=%f exiting \n" % stdRA
-#        sys.exit(1)
-#    print " second step \n"
-    minra=min(min(data['RA_CENT']),min(data['RAC1']),min(data['RAC2']),min(data['RAC3']),min(data['RAC4']))-0.1
-    mindec=min(min(data['DEC_CENT']),min(data['DECC1']),min(data['DECC2']),min(data['DECC3']),min(data['DECC4']))-0.1
-    maxra=max(max(data['RA_CENT']),max(data['RAC1']),max(data['RAC2']),max(data['RAC3']),max(data['RAC4']))+0.1
-    maxdec=max(max(data['DEC_CENT']),max(data['DECC1']),max(data['DECC2']),max(data['DECC3']),max(data['DECC4']))+0.1
+    # Define corners of frame??
+    minra =  min(min(data['RA_CENT']),  min(data['RAC1']),  min(data['RAC2']),  min(data['RAC3']),  min(data['RAC4'])) - 0.1
+    mindec = min(min(data['DEC_CENT']), min(data['DECC1']), min(data['DECC2']), min(data['DECC3']), min(data['DECC4'])) - 0.1
+    maxra =  max(max(data['RA_CENT']),  max(data['RAC1']),  max(data['RAC2']),  max(data['RAC3']),  max(data['RAC4'])) + 0.1
+    maxdec = max(max(data['DEC_CENT']), max(data['DECC1']), max(data['DECC2']), max(data['DECC3']), max(data['DECC4'])) + 0.1
 
-#    print minra,maxra, mindec,maxdec
-
-    outfile="""STD%s""" % catlistFile
-
-    df=pd.DataFrame()
+    # Create string with output file name
+    outfile = """STD%s""" % catlistFile
+    
+    # Create empty list/tables that will be used to create output file
     good_data  = []
-    BANDname=BAND+"_des"
-    names=["MATCHID","RAJ2000_2mass","DEJ2000_2mass",BANDname]
+
+    BANDname = BAND+"_des"
 
     for i in  desipixlist:
-        #myfile="""/data/des20.b/data/sallam/pyPSM_Year2/TWOMASS/ALL-2MASS/2arcsec/apass_TWO_MASS_%d.csv""" %i
-#        print "before copying file %d from stash " % i
         myfile="""/des002/devel/emorgan2/APASS_TWOMASS/apass_TWO_MASS_%d.csv""" %i
-        mmyfile="""/des002/devel/emorgan2/APASS_TWOMASS/apass_TWO_MASS_%d.csv""" %i
-#        myfile="""/pnfs/des/persistent/stash/ALLSKY_STARCAT/apass_TWO_MASS_%d.csv""" %i
-#        myfile1 = "/cvmfs/des.osgstorage.org/stash/ALLSKY_STARCAT/apass_TWO_MASS_%d.csv" %i
-        ##########
-        ##### cp to current DIR
-        #######
-#        mmyfile="""apass_TWO_MASS_%d.csv""" %i
-        os.system('ifdh cp -D %s .' %myfile)
-       
-        if  not os.path.exists("./"+mmyfile):
-            print "file was not copyed try to link it \n" 
-#        os.symlink(myfile1,mmyfile)
 
-#        mmyfile="""apass_TWO_MASS_%d.csv""" %i
-        df= pd.read_csv(mmyfile)   
+        if  not os.path.exists(myfile):
+            print "%s was not copied try to link it" % myfile 
+            sys.exit()
+
+        df= pd.read_csv(myfile)
         good_data.append(df)
 
-    chunk = pd.concat(good_data, ignore_index=True).sort(['RAJ2000_APASS'], ascending=True) 
+    # Put some limits on data, 
+    # cut the frame definded with min/max Ra/De from catalog of standards
+    chunk = pd.concat(good_data, ignore_index=True).sort(['RAJ2000_APASS'], ascending=True)  # reorginize - list of pd frames to one pd frame 
     w1 = ( chunk['RAJ2000_2MASS'] > minra ) ; w2 = ( chunk['RAJ2000_2MASS'] < maxra )
     w3 = ( chunk['DEJ2000_2MASS'] > mindec ); w4 = ( chunk['DEJ2000_2MASS'] < maxdec )
     w5 = ( chunk[BANDname] >0 )
     
-    datastd = chunk[ w1 &  w2 & w3 & w4 & w5 ]
-    datastd1= pd.DataFrame({'MATCHID':datastd['MATCHID'],'RA':datastd['RAJ2000_2MASS'],'DEC':datastd['DEJ2000_2MASS'],'WAVG_MAG_PSF':datastd[BANDname]})
+    datastd = chunk[ w1 &  w2 & w3 & w4 & w5 ]  # overlaping parts??
+    datastd1= pd.DataFrame({'MATCHID':datastd['MATCHID'],
+                            'RA':datastd['RAJ2000_2MASS'],
+                            'DEC':datastd['DEJ2000_2MASS'],
+                            'WAVG_MAG_PSF':datastd[BANDname]})
 
-    col=["MATCHID", "RA","DEC", "WAVG_MAG_PSF"]
+    col = ["MATCHID", "RA","DEC", "WAVG_MAG_PSF"]  # could be replaced by datastd1 keywords
+   
+    # Save to csv file
+    datastd1.to_csv(outfile, columns=col, sep=',', index=False)
 
-    datastd1.to_csv(outfile,columns=col,sep=',',index=False)
-
-    hdr=["MATCHID","RA","DEC","wavg_mag_psf"]
-
+    # Create std files - compare standard to observations (?)
     for i in range(data['RA_CENT'].size):
-        stdlistFile ="""%s_std.csv"""   % (data['FILENAME'][i])   
+        stdlistFile = """%s_std.csv"""   % (data['FILENAME'][i])   
         stdlistFile = args.outdir+'/'+stdlistFile.split('/')[-1] 
-        minra=min(data['RA_CENT'][i],data['RAC1'][i],data['RAC2'][i],data['RAC3'][i],data['RAC4'][i])-.1
-        maxra=max(data['RA_CENT'][i],data['RAC1'][i],data['RAC2'][i],data['RAC3'][i],data['RAC4'][i])+.1
-        mindec=min(data['DEC_CENT'][i],data['DECC1'][i],data['DECC2'][i],data['DECC3'][i],data['DECC4'][i])-.1
-        maxdec=max(data['DEC_CENT'][i],data['DECC1'][i],data['DECC2'][i],data['DECC3'][i],data['DECC4'][i])+.1
-        w1 = ( datastd1['RA'] > minra ) ;w2 = ( datastd1['RA'] < maxra )
-        w3 = ( datastd1['DEC'] > mindec );w4 = ( datastd1['DEC'] < maxdec )
+        minra, maxra, mindec, maxdec = get_corners(data, i , off=0.1)
+        w1 = ( datastd1['RA'] > minra ) ; w2 = ( datastd1['RA'] < maxra )
+        w3 = ( datastd1['DEC'] > mindec) ; w4 = ( datastd1['DEC'] < maxdec )
         df = datastd1[ w1 &  w2 & w3 & w4 ].sort(['RA'], ascending=True)
-        df.to_csv(stdlistFile,columns=col,sep=',',index=False)
+        df.to_csv(stdlistFile, columns=col, sep=',', index=False)
 
 ##################################
 #New plots ONLY if NEEDED!!
@@ -439,70 +409,51 @@ def plotradec_sexvsY2Q1(args):
 ##################################
 #Matching FILES MAKE SURE the Cols are still in the same order
 #
-def matchSortedStdwithObsCats(inputStdFile,inputObsFile,outputMatch,racolStdFile,deccolStdFile,racolObsFile,deccolObsFile,matchArcsec,verbose):
+def matchSortedStdwithObsCats(f1,f2,outfile,stdracol=1,stddeccol=2,obsracol=1,obsdeccol=2,matchTolArcsec=1,verbose=1):
 
     import math
-    import sys
-    
-    f1=inputStdFile
-    f2=inputObsFile
-    outfile=outputMatch
-    stdracol=racolStdFile
-    stddeccol=deccolStdFile
-    obsracol=racolObsFile
-    obsdeccol=deccolObsFile
-    matchTolArcsec=matchArcsec
-    verbose=verbose
-
-    #print f1,f2,outfile,stdracol,stddeccol,obsracol,obsdeccol,matchTolArcsec,verbose
 
     # Initialize "dictionaries"...
     # Each element of a "dictionary" is associated with a standard star.
     # Each element is a list of information from the potential matches from the
     #  observed data.
-    raDict=[]
-    decDict=[]
-    obslineDict=[]
+    raDict = []
+    decDict = []
+    obslineDict = []
     
     # Initialize lists of standard stars...
     # These are actually lists of standards within a given sliding window of RA.
-    stdra_win=[]
-    stddec_win=[]
-    stdline_win=[]
+    stdra_win = []
+    stddec_win = []
+    stdline_win = []
     
     # Open the output file for the standard star/observed star matches...
-    ofd=open(outfile,'w')
+    ofd = open(outfile, 'w')
 
     # Initialize running match id
-    matchid=0
+    matchid = 0
+
+    # Open the standard star CSV file and read the first line as list...
+    fd1 = open(f1)
+    h1 = fd1.readline().strip().split(',')
     
-    # Open the standard star CSV file...
-    fd1=open(f1)
-    
-    # Read header line of standard star CSV file...
-    h1=fd1.readline()
-    h1n=h1.strip().split(',')
-    
-    # Open CSV file of observed data...
-    fd2=open(f2)
-    
-    # Read header line of observed data CSV file...
-    h2=fd2.readline()
-    h2n=h2.strip().split(',')
+    # Open CSV file of observed data and read the first line as list...
+    fd2 = open(f2)
+    h2 = fd2.readline().strip().split(',')
 
     # Create and output header for the output CSV file...
     #  Note that the column names from the standard star file
     #  now have a suffix of "_1", and that column names from
     #  the observed star file now have a suffix of "_2".
-    outputHeader='MATCHID'
-    for colhead in h1n:
-        outputHeader=outputHeader+','+colhead.upper()+'_1'
-    for colhead in h2n:
-        outputHeader=outputHeader+','+colhead.upper()+'_2'
-    outputHeader=outputHeader+'\n'
+    outputHeader = 'MATCHID'
+    for colhead in h1:
+        outputHeader = outputHeader + ',' + colhead.upper() + '_1'
+    for colhead in h2:
+        outputHeader = outputHeader + ',' + colhead.upper() + '_2'
+    outputHeader = outputHeader + '\n'
+   
     ofd.write(outputHeader)
-    
-
+   
     # initialize some variables
     #  done_std = "are we done reading the standard stars file?"
     #  done_obs = "are we done reading the observations file?"
@@ -512,20 +463,20 @@ def matchSortedStdwithObsCats(inputStdFile,inputObsFile,outputMatch,racolStdFile
     #  tol2 = square of tol
     #  tolrawin = half-range of RA window (in degrees)
     #  linecnt = "line count"
-    done_std=0
-    done_obs=0
-    stdra=-999
-    stddec=-999
-    obsra=-999
-    obsdec=-999
-    tol=matchTolArcsec/3600.0
-    tol2=tol*tol
-    tolrawin=3.*tol
+    done_std = False
+    done_obs = False
+    stdra = -999
+    stddec = -999
+    obsra = -999
+    obsdec = -999
+    tol = matchTolArcsec/3600.0
+    tol2 = tol*tol
+    tolrawin = 3.*tol
 
-    linecnt=0
-    
+    linecnt = 0
+
     # Loop through file of observed data...
-    while (done_obs == 0):
+    while not done_obs:
 
         # Increment line count from observed data file...
         linecnt += 1
@@ -534,52 +485,49 @@ def matchSortedStdwithObsCats(inputStdFile,inputObsFile,outputMatch,racolStdFile
             sys.stdout.flush()
 
         # Read line from observed data file...
-        l2=fd2.readline()
+        obsline2 = fd2.readline().strip()
+   
 
         # Are we done reading through the file of observed data yet?
         # If so, set done_obs=1 and ignore the rest of the loop;
         # otherwise, process the data line and continue with the
         # rest of the loop...
-        if l2 == "":
-            done_obs = 1
+        if obsline2 == "":
+            done_obs = True
             continue
         else:
             #obsline2 holds the whole line of information for this entry for
             # future use...
-            obsline2=l2.strip()
-            l2s=l2.strip().split(',')
-            obsra=float(l2s[obsracol])
-            obsdec=float(l2s[obsdeccol])
-        #endif
-
+            obsra = float(obsline2.split(',')[obsracol])
+            obsdec = float(obsline2.split(',')[obsdeccol])
 
         # Update the sliding RA window of standard stars...
         #  ... but only if stdra-obsra <= tolrawin, 
         #  ... and only if we haven't previously finished
         #      reading the standard star file...
-        while ( (stdra-obsra <= tolrawin) and (done_std == 0) ):
-
+       
+        while ( (stdra-obsra <= tolrawin) and not done_std ):
+       
             # Read the next line from the standard star file...
-            l1=fd1.readline()
-        
+            l1 = fd1.readline().strip()
+
             # if we have reached the end of the standard star file,
             # set done_std=1 and skip the rest of this code block; 
             # otherwise, process the new line...
             if l1 ==  "":
-
-                done_std=1
+                done_std = True
 
             else:
-
-                l1s=l1.strip().split(',')
-                stdra_new=float(l1s[stdracol])
-                stddec_new=float(l1s[stddeccol])
+                stdra_new = float(l1.split(',')[stdracol])
+                stddec_new = float(l1.split(',')[stddeccol])
+                
 
                 # if the new standard star RA (stdra_new) is at or above the 
                 #  lower bound, add this standard star to the sliding RA 
                 #  window...
+   
                 if ((stdra_new-obsra) >= -tolrawin):
-
+           
                     # update values of stdra, stddec...
                     stdra = stdra_new
                     stddec = stddec_new
@@ -596,13 +544,7 @@ def matchSortedStdwithObsCats(inputStdFile,inputObsFile,outputMatch,racolStdFile
                     raDict.append([])
                     decDict.append([])
                     obslineDict.append([])
-            
-                #endif
-            
-            #endif
-
-        #endwhile -- inner "while" loop
-
+       
         
         # Find the first good match (not necessarily the best match) between this
         # observed star and the set of standard stars within the sliding RA
@@ -610,13 +552,13 @@ def matchSortedStdwithObsCats(inputStdFile,inputObsFile,outputMatch,racolStdFile
         # (We might want to revisit this choice -- i.e., of first match vs. best
         #  match -- in the future.)
         
-        cosd=math.cos(math.radians(obsdec))
+        cosd = math.cos(math.radians(obsdec))
 
         # Loop through all standards stars i in the sliding RA window for that
         #  observed star...
         for i in range(0,len(stdra_win)):
 
-            delta2=(obsra-stdra_win[i])*(obsra-stdra_win[i])*cosd*cosd+(obsdec-stddec_win[i])*(obsdec-stddec_win[i])
+            delta2 = (obsra-stdra_win[i])*(obsra-stdra_win[i])*cosd*cosd+(obsdec-stddec_win[i])*(obsdec-stddec_win[i])
 
             # Is the sky position of standard star i (in the sliding RA window)
             #  within the given radial tolerance of the observed star?  If so, 
@@ -628,10 +570,6 @@ def matchSortedStdwithObsCats(inputStdFile,inputObsFile,outputMatch,racolStdFile
                 # if we found one match, we take it and break out of this "for"
                 #  loop...
                 break
-            #endif 
-
-        #endfor
-
 
         # Do some cleanup of the lists and "dictionaries" associated with the 
         #  sliding RA window and output matches to output file...
@@ -644,6 +582,7 @@ def matchSortedStdwithObsCats(inputStdFile,inputObsFile,outputMatch,racolStdFile
             # star...
             # (Note that many standard stars may have zero matches...)
             for j in range(0,len(raDict[0])):
+        
 
                 # increment the running star id
                 matchid += 1
@@ -651,9 +590,7 @@ def matchSortedStdwithObsCats(inputStdFile,inputObsFile,outputMatch,racolStdFile
                 # output line to the match file...
                 outputLine = """%d,%s,%s\n""" % (matchid,stdline_win[0],obslineDict[0][j])
                 ofd.write(outputLine)
-
-            #endfor
-
+                
             # Delete the dictionaries associated with this standard star
             #  (star "0" in the sliding RA window)...
             del raDict[0]
@@ -665,11 +602,6 @@ def matchSortedStdwithObsCats(inputStdFile,inputObsFile,outputMatch,racolStdFile
             del stdra_win[0]
             del stddec_win[0]
             del stdline_win[0]
-
-        #endwhile -- inner "while" loop
-
-    #endwhile -- outer "while" loop
-        
 
     # Do some cleanup of the lists and "dictionaries" associated with the sliding 
     #  RA window after reading last line of observed data file and output matches
@@ -687,7 +619,6 @@ def matchSortedStdwithObsCats(inputStdFile,inputObsFile,outputMatch,racolStdFile
             outputLine = """%d,%s,%s\n""" % (matchid,stdline_win[0],obslineDict[0][j])
             ofd.write(outputLine)
 
-        #endfor
 
         # Delete the dictionaries associated with this standard star
         #  (star "0" in the sliding RA window)...
@@ -701,14 +632,11 @@ def matchSortedStdwithObsCats(inputStdFile,inputObsFile,outputMatch,racolStdFile
         del stddec_win[0]
         del stdline_win[0]
             
-    #endwhile
-        
     # close the input and output files...
-    fd1.close()
-    fd2.close()
-    ofd.close()
+    for f in [fd1, fd2, ofd]:
+        f.close()
 
-    return 0
+   
 
 ##################################
 # Get 3sigma clipped Zero point and iterater
@@ -1244,8 +1172,7 @@ def plotradec_ZP(args):
 def apply_ZP_Sexcatalogfitstocsv(catFilename,EXPNUM,CCDNUM,zeropoint,zeropoint_rms,ZPFLAG,outdir,dir):
     import fitsio
     import string,math,csv
-    import numpy as np
-
+    
     outFile="""%s_Obj.csv""" % (catFilename)   
     outFile = outdir+'/'+outFile.split('/')[-1] 
     extension=2
@@ -1292,61 +1219,61 @@ def Onefile(args):
     if not os.path.isfile(catlistFile):
         print '%s does not seem to exist...' % catlistFile
 
-    fout="""D%08d_r%sp%02d_ZP.csv""" % (args.expnum,args.reqnum,args.attnum)
-    fitsout="""D%08d_r%sp%02d_ZP.fits""" % (args.expnum,args.reqnum,args.attnum)
+    fout = """D%08d_r%sp%02d_ZP.csv""" % (args.expnum, args.reqnum, args.attnum)
+    fitsout = """D%08d_r%sp%02d_ZP.fits""" % (args.expnum, args.reqnum, args.attnum)
 
-    #Removed Feb23,2017
-    #os.system('rm %s ' %fitsout)
-
-    data=np.genfromtxt(catlistFile,dtype=None,delimiter=',',names=True)
+    data = np.genfromtxt(catlistFile, dtype=None, delimiter=',', names=True)
         
     for i in range(data['FILENAME'].size):
-        apply_ZP_Sexcatalogfitstocsv(data['FILENAME'][i],data['EXPNUM'][i],data['CCDNUM'][i],data['NewZP'][i],data['NewZPrms'][i],data['NewZPFlag'][i],args.outdir,args.dir)
+        apply_ZP_Sexcatalogfitstocsv(data['FILENAME'][i],
+                                     data['EXPNUM'][i], data['CCDNUM'][i],
+                                     data['NewZP'][i], data['NewZPrms'][i], data['NewZPFlag'][i],
+                                     args.outdir,args.dir)
         
-    path='./'
+    path = './'
     all_files = glob.glob(os.path.join(path, "*Obj.csv"))     
 
-    big_frame=pd.concat((pd.read_csv(f) for f in all_files)).sort(['ALPHAWIN_J2000'], ascending=True)
+    big_frame = pd.concat((pd.read_csv(f) for f in all_files)).sort(['ALPHAWIN_J2000'], ascending=True)
 
-    big_frame['ID']=list(range(len(big_frame['ALPHAWIN_J2000'].index)))
-    big_frame['ID']=1+big_frame['ID']
+    big_frame['ID'] = list(range(len(big_frame['ALPHAWIN_J2000'].index)))
+    big_frame['ID'] = 1+big_frame['ID']
     
-    Cols=["ID","EXPNUM","CCDNUM","NUMBER","ALPHAWIN_J2000","DELTAWIN_J2000","FLUX_AUTO","FLUXERR_AUTO","FLUX_PSF","FLUXERR_PSF","MAG_AUTO","MAGERR_AUTO","MAG_PSF","MAGERR_PSF","SPREAD_MODEL","SPREADERR_MODEL","FWHM_WORLD","FWHMPSF_IMAGE","FWHMPSF_WORLD","CLASS_STAR","FLAGS","IMAFLAGS_ISO","ZeroPoint","ZeroPoint_rms","ZeroPoint_FLAGS"]
+    Cols = ["ID","EXPNUM","CCDNUM","NUMBER","ALPHAWIN_J2000","DELTAWIN_J2000","FLUX_AUTO","FLUXERR_AUTO","FLUX_PSF","FLUXERR_PSF","MAG_AUTO","MAGERR_AUTO","MAG_PSF","MAGERR_PSF","SPREAD_MODEL","SPREADERR_MODEL","FWHM_WORLD","FWHMPSF_IMAGE","FWHMPSF_WORLD","CLASS_STAR","FLAGS","IMAFLAGS_ISO","ZeroPoint","ZeroPoint_rms","ZeroPoint_FLAGS"]
 
-    big_frame.to_csv(fout,sep=',',columns=Cols,index=False)
+    big_frame.to_csv(fout, sep=',', columns=Cols,index=False)
 
 #Later Please ADD new args for args.fits/args.csv  with if one/or and
 #Currently BOTH csv and fits are written to disk with  NO ARGS!
     
-    col1   = fits.Column(name='ID',format='J', array=np.array(big_frame['ID']))
-    col2   = fits.Column(name='EXPNUM',format='I',array=np.array(big_frame['EXPNUM']))
-    col3   = fits.Column(name='CCDNUM',format='I', array=np.array(big_frame['CCDNUM']))
-    col4   = fits.Column(name='NUMBER',format='I', array=np.array(big_frame['NUMBER']))
-    col5   = fits.Column(name='ALPHAWIN_J2000',format='D',array=np.array(big_frame['ALPHAWIN_J2000']))
-    col6   = fits.Column(name='DELTAWIN_J2000',format='D', array=np.array(big_frame['DELTAWIN_J2000']))
-    col7   = fits.Column(name='FLUX_AUTO',format='D', array=np.array(big_frame['FLUX_AUTO']))
-    col8   = fits.Column(name='FLUXERR_AUTO',format='D', array=np.array(big_frame['FLUXERR_AUTO']))
-    col9   = fits.Column(name='FLUX_PSF',format='D', array=np.array(big_frame['FLUX_PSF']))
-    col10  = fits.Column(name='FLUXERR_PSF',format='D', array=np.array(big_frame['FLUXERR_PSF']))
-    col11  = fits.Column(name='MAG_AUTO',format='D', array=np.array(big_frame['MAG_AUTO']))
-    col12  = fits.Column(name='MAGERR_AUTO',format='D',array=np.array(big_frame['MAGERR_AUTO'])) 
-    col13  = fits.Column(name='MAG_PSF',format='D', array=np.array(big_frame['MAG_PSF']))
-    col14  = fits.Column(name='MAGERR_PSF',format='D', array=np.array(big_frame['MAGERR_PSF']))
-    col15  = fits.Column(name='SPREAD_MODEL',format='D',array=np.array(big_frame['SPREAD_MODEL']))
-    col16  = fits.Column(name='SPREADERR_MODEL',format='D',array=np.array(big_frame['SPREADERR_MODEL']))
-    col17  = fits.Column(name='FWHM_WORLD',format='D', array=np.array(big_frame['FWHM_WORLD']))
-    col18  = fits.Column(name='FWHMPSF_IMAGE',format='D',array=np.array(big_frame['FWHMPSF_IMAGE'])) 
-    col19  = fits.Column(name='FWHMPSF_WORLD',format='D',array=np.array(big_frame['FWHMPSF_WORLD'])) 
-    col20  = fits.Column(name='CLASS_STAR',format='D', array=np.array(big_frame['CLASS_STAR']))
-    col21  = fits.Column(name='FLAGS',format='I',array=np.array(big_frame['FLAGS'])) 
-    col22  = fits.Column(name='IMAFLAGS_ISO',format='I', array=np.array(big_frame['IMAFLAGS_ISO']))
-    col23  = fits.Column(name='ZeroPoint',format='D', array=np.array(big_frame['ZeroPoint']))
-    col24  = fits.Column(name='ZeroPoint_rms',format='D', array=np.array(big_frame['ZeroPoint_rms']))
-    col25  = fits.Column(name='ZeroPoint_FLAGS',format='I', array=np.array(big_frame['ZeroPoint_FLAGS']))
+    col1   = fits.Column(name='ID', format='J', array=np.array(big_frame['ID']))
+    col2   = fits.Column(name='EXPNUM', format='I',array=np.array(big_frame['EXPNUM']))
+    col3   = fits.Column(name='CCDNUM', format='I', array=np.array(big_frame['CCDNUM']))
+    col4   = fits.Column(name='NUMBER', format='I', array=np.array(big_frame['NUMBER']))
+    col5   = fits.Column(name='ALPHAWIN_J2000', format='D', array=np.array(big_frame['ALPHAWIN_J2000']))
+    col6   = fits.Column(name='DELTAWIN_J2000', format='D', array=np.array(big_frame['DELTAWIN_J2000']))
+    col7   = fits.Column(name='FLUX_AUTO', format='D', array=np.array(big_frame['FLUX_AUTO']))
+    col8   = fits.Column(name='FLUXERR_AUTO', format='D', array=np.array(big_frame['FLUXERR_AUTO']))
+    col9   = fits.Column(name='FLUX_PSF', format='D', array=np.array(big_frame['FLUX_PSF']))
+    col10  = fits.Column(name='FLUXERR_PSF', format='D', array=np.array(big_frame['FLUXERR_PSF']))
+    col11  = fits.Column(name='MAG_AUTO', format='D', array=np.array(big_frame['MAG_AUTO']))
+    col12  = fits.Column(name='MAGERR_AUTO', format='D', array=np.array(big_frame['MAGERR_AUTO'])) 
+    col13  = fits.Column(name='MAG_PSF', format='D', array=np.array(big_frame['MAG_PSF']))
+    col14  = fits.Column(name='MAGERR_PSF', format='D', array=np.array(big_frame['MAGERR_PSF']))
+    col15  = fits.Column(name='SPREAD_MODEL', format='D', array=np.array(big_frame['SPREAD_MODEL']))
+    col16  = fits.Column(name='SPREADERR_MODEL', format='D', array=np.array(big_frame['SPREADERR_MODEL']))
+    col17  = fits.Column(name='FWHM_WORLD', format='D', array=np.array(big_frame['FWHM_WORLD']))
+    col18  = fits.Column(name='FWHMPSF_IMAGE', format='D', array=np.array(big_frame['FWHMPSF_IMAGE'])) 
+    col19  = fits.Column(name='FWHMPSF_WORLD', format='D', array=np.array(big_frame['FWHMPSF_WORLD'])) 
+    col20  = fits.Column(name='CLASS_STAR', format='D', array=np.array(big_frame['CLASS_STAR']))
+    col21  = fits.Column(name='FLAGS', format='I', array=np.array(big_frame['FLAGS'])) 
+    col22  = fits.Column(name='IMAFLAGS_ISO', format='I', array=np.array(big_frame['IMAFLAGS_ISO']))
+    col23  = fits.Column(name='ZeroPoint', format='D', array=np.array(big_frame['ZeroPoint']))
+    col24  = fits.Column(name='ZeroPoint_rms', format='D', array=np.array(big_frame['ZeroPoint_rms']))
+    col25  = fits.Column(name='ZeroPoint_FLAGS', format='I', array=np.array(big_frame['ZeroPoint_FLAGS']))
 
-    cols=fits.ColDefs([col1, col2, col3, col4, col5, col6, col7, col8, col9, col10, col11, col12, col13, col14, col15, col16, col17, col18, col19, col20, col21, col22, col23, col24,col25])
+    cols = fits.ColDefs([col1, col2, col3, col4, col5, col6, col7, col8, col9, col10, col11, col12, col13, col14, col15, col16, col17, col18, col19, col20, col21, col22, col23, col24,col25])
 
-    tbhdu=fits.BinTableHDU.from_columns(cols)
+    tbhdu = fits.BinTableHDU.from_columns(cols)
     tbhdu.writeto(fitsout)
 
 ##################################
@@ -1364,30 +1291,29 @@ def knn(df,k):
 
 ##################
 #reachDist calculates the reach distance of each point to MinPts around it
-def reachDist(df,MinPts,knnDist):
+def reachDist(df, MinPts, knnDist):
     from sklearn.neighbors import NearestNeighbors
-    import numpy as np
     
     nbrs = NearestNeighbors(n_neighbors=MinPts)
     nbrs.fit(df)
     distancesMinPts, indicesMinPts = nbrs.kneighbors(df)
-    distancesMinPts[:,0] = np.amax(distancesMinPts,axis=1)
-    distancesMinPts[:,1] = np.amax(distancesMinPts,axis=1)
-    distancesMinPts[:,2] = np.amax(distancesMinPts,axis=1)
+    distancesMinPts[:, 0] = np.amax(distancesMinPts, axis=1)
+    distancesMinPts[:, 1] = np.amax(distancesMinPts, axis=1)
+    distancesMinPts[:, 2] = np.amax(distancesMinPts, axis=1)
     return distancesMinPts, indicesMinPts
 
 ##################
 #lrd calculates the Local Reachability Density
 def lrd(MinPts,knnDistMinPts):
     import numpy as np
-    return (MinPts/np.sum(knnDistMinPts,axis=1))
+    return (MinPts / np.sum(knnDistMinPts, axis=1))
 
 ##################
 #Finally lof calculates lot outlier scores
-def lof(Ird,MinPts,dsts):
-    lof=[]
+def lof(Ird, MinPts, dsts):
+    lof = []
     for item in dsts:
-       tempIrd = np.divide(Ird[item[1:]],Ird[item[0]])
+       tempIrd = np.divide(Ird[item[1:]], Ird[item[0]])
        lof.append(tempIrd.sum()/MinPts)
     return lof
 
@@ -1395,7 +1321,7 @@ def lof(Ird,MinPts,dsts):
 #We flag anything with outlier score greater than 1.2 as outlier
 #This is just for charting purposes
 def returnFlag(x):
-    if x['Score']>1.2:
+    if x['Score'] > 1.2:
        return 1
     else:
        return 0
