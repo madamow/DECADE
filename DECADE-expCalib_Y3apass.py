@@ -48,11 +48,10 @@ def main():
     if args.verbose > 0: print args
    
     # Create all *std files
-    getallccdfromAPASS92MASS(args)
+   # getallccdfromAPASS92MASS(args)
     
     #-- ADDED NEW
-    doset(args)
-    exit()
+    #doset(args)
 
     #WHEN NEEDED
     #plot ra,dec of Sex-vs Y2Q1 for each CCD
@@ -60,10 +59,11 @@ def main():
         plotradec_sexvsY2Q1(args)
 
     #Estimate 3sigma Clipped Zeropoint for each CCD
-    sigmaClipZP(args)
-
+    #sigmaClipZP(args)
+    
     #-
     sigmaClipZPallCCDs(args)
+
 
     #-
     ZP_OUTLIERS(args)
@@ -408,72 +408,33 @@ def plotradec_sexvsY2Q1(args):
 
 ##################################
 #Matching FILES MAKE SURE the Cols are still in the same order
-#
 def matchSortedStdwithObsCats(f1,f2,outfile,stdracol=1,stddeccol=2,obsracol=1,obsdeccol=2,matchTolArcsec=1,verbose=1):
-
-    import math
-
-    # Initialize "dictionaries"...
-    # Each element of a "dictionary" is associated with a standard star.
-    # Each element is a list of information from the potential matches from the
-    #  observed data.
-    raDict = []
-    decDict = []
-    obslineDict = []
-    
-    # Initialize lists of standard stars...
-    # These are actually lists of standards within a given sliding window of RA.
-    stdra_win = []
-    stddec_win = []
-    stdline_win = []
-    
-    # Open the output file for the standard star/observed star matches...
-    ofd = open(outfile, 'w')
-
-    # Initialize running match id
-    matchid = 0
-
+    print "Looking for a match...", f2
     # Open the standard star CSV file and read the first line as list...
-    fd1 = open(f1)
-    h1 = fd1.readline().strip().split(',')
+    fs = pd.read_csv(f1, delimiter=',')
     
-    # Open CSV file of observed data and read the first line as list...
+    # Open CSV file of observed data and read it line by line...
     fd2 = open(f2)
-    h2 = fd2.readline().strip().split(',')
+    h2 = fd2.readline().strip().split(',')  # read header
 
-    # Create and output header for the output CSV file...
+    # Create an empty data frame that will be saved later as CSV file...
     #  Note that the column names from the standard star file
     #  now have a suffix of "_1", and that column names from
     #  the observed star file now have a suffix of "_2".
-    outputHeader = 'MATCHID'
-    for colhead in h1:
-        outputHeader = outputHeader + ',' + colhead.upper() + '_1'
+    outputHeader = ['MATCHID']
+    for colhead in list(fs):
+        outputHeader.append(colhead.upper() + '_1')
     for colhead in h2:
-        outputHeader = outputHeader + ',' + colhead.upper() + '_2'
-    outputHeader = outputHeader + '\n'
-   
-    ofd.write(outputHeader)
-   
-    # initialize some variables
-    #  done_std = "are we done reading the standard stars file?"
-    #  done_obs = "are we done reading the observations file?"
-    #  stdra, stddec = "current values for standard star RA,DEC"
-    #  obsra, obsdec = "current values for observed star RA,DEC"
-    #  tol = sky angular separation tolerance (in degrees)
-    #  tol2 = square of tol
-    #  tolrawin = half-range of RA window (in degrees)
-    #  linecnt = "line count"
-    done_std = False
+        outputHeader.append(colhead.upper() + '_2')
+    out = pd.DataFrame(index=[], columns=outputHeader)
+    
+    # Initialize some variables
     done_obs = False
-    stdra = -999
-    stddec = -999
-    obsra = -999
-    obsdec = -999
-    tol = matchTolArcsec/3600.0
-    tol2 = tol*tol
-    tolrawin = 3.*tol
+    tol = matchTolArcsec / 3600.0  # sky angular separation tolerance (in degrees)
+    tol2 = tol*tol  # square for tol
 
-    linecnt = 0
+    linecnt = 0  # line count for Obj file
+    m_id = 0  # match id
 
     # Loop through file of observed data...
     while not done_obs:
@@ -485,159 +446,36 @@ def matchSortedStdwithObsCats(f1,f2,outfile,stdracol=1,stddeccol=2,obsracol=1,ob
             sys.stdout.flush()
 
         # Read line from observed data file...
-        obsline2 = fd2.readline().strip()
-   
+        obsline = fd2.readline().strip().split(',')
 
-        # Are we done reading through the file of observed data yet?
-        # If so, set done_obs=1 and ignore the rest of the loop;
-        # otherwise, process the data line and continue with the
-        # rest of the loop...
-        if obsline2 == "":
+        if obsline == ['']:
             done_obs = True
-            continue
         else:
-            #obsline2 holds the whole line of information for this entry for
-            # future use...
-            obsra = float(obsline2.split(',')[obsracol])
-            obsdec = float(obsline2.split(',')[obsdeccol])
-
-        # Update the sliding RA window of standard stars...
-        #  ... but only if stdra-obsra <= tolrawin, 
-        #  ... and only if we haven't previously finished
-        #      reading the standard star file...
-       
-        while ( (stdra-obsra <= tolrawin) and not done_std ):
-       
-            # Read the next line from the standard star file...
-            l1 = fd1.readline().strip()
-
-            # if we have reached the end of the standard star file,
-            # set done_std=1 and skip the rest of this code block; 
-            # otherwise, process the new line...
-            if l1 ==  "":
-                done_std = True
-
-            else:
-                stdra_new = float(l1.split(',')[stdracol])
-                stddec_new = float(l1.split(',')[stddeccol])
-                
-
-                # if the new standard star RA (stdra_new) is at or above the 
-                #  lower bound, add this standard star to the sliding RA 
-                #  window...
-   
-                if ((stdra_new-obsra) >= -tolrawin):
-           
-                    # update values of stdra, stddec...
-                    stdra = stdra_new
-                    stddec = stddec_new
-
-                    # add the standard star info to lists of ra, dec, and general
-                    #  data for this sliding window...
-                    stdra_win.append(stdra)
-                    stddec_win.append(stddec)
-                    stdline_win.append(l1.strip())
+            obsra = float(obsline[1])
+            obsdec = float(obsline[2])
+            cosd = np.cos(np.radians(obsdec))
+            # Check if there is a match for object coordinates in standard stars file
+            # calculate distnace and check if it is within given limit 
+            delta2 = np.array((obsra - fs['RA'])*(obsra - fs['RA'])*cosd*cosd+(obsdec-fs['DEC'])*(obsdec-fs['DEC']))
+            mtch = fs.iloc[np.where(delta2 < tol2)]
             
-                    # initialize lists for possible observed star/standard star 
-                    #  matches and add these (still empty) lists to "dictionaries" 
-                    #  associated with this sliding window of standard stars...
-                    raDict.append([])
-                    decDict.append([])
-                    obslineDict.append([])
-       
-        
-        # Find the first good match (not necessarily the best match) between this
-        # observed star and the set of standard stars within the sliding RA
-        # window... 
-        # (We might want to revisit this choice -- i.e., of first match vs. best
-        #  match -- in the future.)
-        
-        cosd = math.cos(math.radians(obsdec))
-
-        # Loop through all standards stars i in the sliding RA window for that
-        #  observed star...
-        for i in range(0,len(stdra_win)):
-
-            delta2 = (obsra-stdra_win[i])*(obsra-stdra_win[i])*cosd*cosd+(obsdec-stddec_win[i])*(obsdec-stddec_win[i])
-
-            # Is the sky position of standard star i (in the sliding RA window)
-            #  within the given radial tolerance of the observed star?  If so, 
-            #  add the observed info to that standard star's dictionaries...
-            if float(delta2) < float(tol2):
-                raDict[i].append(obsra)
-                decDict[i].append(obsdec)
-                obslineDict[i].append(obsline2)
-                # if we found one match, we take it and break out of this "for"
-                #  loop...
-                break
-
-        # Do some cleanup of the lists and "dictionaries" associated with the 
-        #  sliding RA window and output matches to output file...
-        #  For each iteration of this while loop, we look at the "zeroth"
-        #  standard star in the sliding RA window and remove it if it
-        #  turns out to be now outside the RA tolerance window.
-        while ( (len(stdra_win) > 1) and (obsra-stdra_win[0] > tolrawin) ):
-
-            # Loop through all the observations matched with this standard 
-            # star...
-            # (Note that many standard stars may have zero matches...)
-            for j in range(0,len(raDict[0])):
-        
-
-                # increment the running star id
-                matchid += 1
-                        
-                # output line to the match file...
-                outputLine = """%d,%s,%s\n""" % (matchid,stdline_win[0],obslineDict[0][j])
-                ofd.write(outputLine)
-                
-            # Delete the dictionaries associated with this standard star
-            #  (star "0" in the sliding RA window)...
-            del raDict[0]
-            del decDict[0]
-            del obslineDict[0]
+            if not mtch.empty:
+                for m in mtch.iterrows():
+                    m_id += 1
+                    out_row = pd.DataFrame([[m_id] + mtch.values.tolist()[0] + obsline], columns=outputHeader)
+                    out = out.append(out_row, ignore_index=True)
+ 
+   # Change dtype so output file looks nice 
+    out.MATCHID = out.MATCHID.astype(int)
+    out.MATCHID_1 = out.MATCHID_1.astype(int)
+    out.OBJECT_NUMBER_2 = out.OBJECT_NUMBER_2.astype(int)
     
-            # Delete the lists associated with standard star
-            #  (star "0" in the sliding RA window)...
-            del stdra_win[0]
-            del stddec_win[0]
-            del stdline_win[0]
-
-    # Do some cleanup of the lists and "dictionaries" associated with the sliding 
-    #  RA window after reading last line of observed data file and output matches
-    #  to output file...
-    while (len(stdra_win) > 0):
-
-        # Loop through all the observations matched with this standard star...
-        # (Note that many standard stars may have zero matches...)
-        for j in range(0,len(raDict[0])):
-
-            # increment the running star id
-            matchid += 1
-
-            # output line to the match file...
-            outputLine = """%d,%s,%s\n""" % (matchid,stdline_win[0],obslineDict[0][j])
-            ofd.write(outputLine)
-
-
-        # Delete the dictionaries associated with this standard star
-        #  (star "0" in the sliding RA window)...
-        del raDict[0]
-        del decDict[0]
-        del obslineDict[0]
+    # Drop matches to output file
+    out.to_csv(outfile, index=False)
     
-        # Delete the lists associated with standard star
-        #  (star "0" in the sliding RA window)...
-        del stdra_win[0]
-        del stddec_win[0]
-        del stdline_win[0]
-            
-    # close the input and output files...
-    for f in [fd1, fd2, ofd]:
-        f.close()
-
-   
-
+    # close the input object file
+    fd2.close()
+  
 ##################################
 # Get 3sigma clipped Zero point and iterater
 ##################################
@@ -645,74 +483,54 @@ def matchSortedStdwithObsCats(f1,f2,outfile,stdracol=1,stddeccol=2,obsracol=1,ob
 def sigmaClipZP(args):
     import astropy 
     from astropy.stats import sigma_clip
-    import numpy as np
-    from numpy import mean
-    import numpy.ma as ma 
     import string
-    import sys
-    import math
 
     if args.verbose >0 : print args
-
-    catlistFile="""D%08d_r%sp%02d_red_catlist.csv""" % (args.expnum,args.reqnum,args.attnum)
-    if not os.path.isfile(catlistFile):
-        print '%s does not seem to exist... exiting now...' % catlistFile
-        sys.exit(1)
-
-    data1=np.genfromtxt(catlistFile,dtype=None,delimiter=',',names=True)
-    ZeroListFile="""Zero_D%08d_r%sp%02d.csv""" % (args.expnum,args.reqnum,args.attnum)
-#change Feb22,2017		
-    #ZeroListFile="""Zero_D%08d_r%sp%02d.csv""" % (args.expnum,args.reqnum,args.attnum)
     
-    fout=open(ZeroListFile,'w')
+    catlistFile, data1 = read_catlist(args)
+    
+    ZeroListFile = """Zero_D%08d_r%sp%02d.csv""" % (args.expnum, args.reqnum, args.attnum)
+    
+    fout = open(ZeroListFile,'w')
     hdr = "FILENAME,Nall,Nclipped,ZP,ZPrms,magType\n"
     fout.write(hdr)
 
-    for i in range(data1['FILENAME'].size):
-        catFilename = os.path.basename(data1['FILENAME'][i])
-        matchListFile="%s_match.csv" % (catFilename)        
+    for row in data1['FILENAME']:
+        catFilename = os.path.basename(row)
+        matchListFile = "%s_match.csv" % (catFilename)        
+
         if not os.path.isfile(matchListFile):
             print '%s does not seem to exist... exiting now...' % matchListFile
             sys.exit(1)
 
-        try:
-            #add new cuts for Apass9-2mass data set
-            data11=np.genfromtxt(matchListFile,dtype=None,delimiter=',',names=True)
-            #New CUTS
-            w0=(data11['MAG_2']-data11['WAVG_MAG_PSF_1']-25.0) < -10
-            w1=(data11['MAG_2']-data11['WAVG_MAG_PSF_1']-25.0) > -40
-            data=data11[ w0 & w1 ]
+        #add new cuts for Apass9-2mass data set
+        mdata = pd.read_csv(matchListFile, delimiter=',')
 
-            # Identify band...      It is now BAND_2!!
-            bandList = data['BAND_2'].tolist()
-            band = bandList[0].upper()
-
-            WAVG_MAG_PSF_1       =data['WAVG_MAG_PSF_1']
-            MAG_2                =data['MAG_2']
-            delt_mag_data        =MAG_2 -WAVG_MAG_PSF_1 -25.0
-            filtered_data        =sigma_clip(delt_mag_data, sigma=3, iters=3, cenfunc=np.mean, copy=True)
-            NumStarsClipped      =(filtered_data).count()
-            NumStarsAll          =len(filtered_data)
-
+        #New CUTS
+        data = mdata.loc[(mdata['MAG_2'] - mdata['WAVG_MAG_PSF_1'] - 25.0 < -10) & 
+                               (mdata['MAG_2'] - mdata['WAVG_MAG_PSF_1'] - 25.0 > -40) ]
+        
+        if  data.shape[0] != 0:
+            delt_mag_data = data['MAG_2'] -data['WAVG_MAG_PSF_1'] - 25.0
+            filtered_data = sigma_clip(delt_mag_data, sigma=3, iters=3, cenfunc=np.mean, copy=True)
+            NumStarsClipped = filtered_data.count()
+            NumStarsAll = len(delt_mag_data)
+       
             if  NumStarsClipped >2:
-                sigclipZP=np.mean(filtered_data)
-                stdsigclipzp=np.std(filtered_data)/math.sqrt(NumStarsClipped)
-
+                sigclipZP = np.mean(filtered_data)
+                stdsigclipzp = np.std(filtered_data) / np.sqrt(NumStarsClipped)
             else:
-                sigclipZP=-999
-                stdsigclipzp=-999
-        except:
-            sigclipZP      =-999
-            stdsigclipzp   =-999
-            NumStarsClipped=0
-            NumStarsAll    =0
+                sigclipZP = -999
+                stdsigclipzp = -999
+        else:
+            sigclipZP = -999
+            stdsigclipzp = -999
+            NumStarsClipped = 0
+            NumStarsAll = 0
 
-#        line = """%s,%d,%d,%f,%f,%s""" % (catFilename, NumStarsAll,NumStarsClipped,sigclipZP,stdsigclipzp,args.magType)
-        line = """%s,%d,%d,%f,%f,%s""" % (data1['FILENAME'][i], NumStarsAll,NumStarsClipped,sigclipZP,stdsigclipzp,args.magType)
+        line = """%s,%d,%d,%f,%f,%s""" % (row, NumStarsAll, NumStarsClipped, sigclipZP, stdsigclipzp, args.magType)
+        fout.write(line + '\n')
 
-        fout.write(line+'\n')
-
-#Added new!
     fout.close()        
 
     ZeroListFile="""Zero_D%08d_r%sp%02d.csv""" % (args.expnum,args.reqnum,args.attnum)
@@ -721,11 +539,11 @@ def sigmaClipZP(args):
         sys.exit(1)
 
     MergedFile="""Merged_D%08d_r%sp%02d.csv""" % (args.expnum,args.reqnum,args.attnum)
-    jointwocsv(catlistFile,ZeroListFile,MergedFile)
-
+    jointwocsv(catlistFile,ZeroListFile,MergedFile) 
+    
 ##################################
 #Given two csv join both output to MergedFile
-def jointwocsv(file1,file2,MergedFile):    
+def jointwocsv(file1, file2, MergedFile):    
     import csv
     from collections import OrderedDict
 
@@ -746,7 +564,6 @@ def jointwocsv(file1,file2,MergedFile):
         for row in data.itervalues():
             writer.writerow([row.get(field, '') for field in fieldnames])
 #
-#
 ##################################
 # Modified at 10/09/2017 
 # changed from 357 to 350 
@@ -764,39 +581,37 @@ def roundra(ra):
 ##################################
 
 def sigmaClipZPallCCDs(args):
-    import pandas as pd
-    import numpy as np
     import sys,os,glob,math,string
-    import astropy 
     from astropy.stats import sigma_clip
     from numpy import mean
     import numpy.ma as ma 
 
     if args.verbose >0 : print args
-    #allZPout="""allZP_D%08d_r%sp%02d.csv""" % (args.expnum,args.reqnum,args.attnum)	
-    allZPout="""allZP_D%08d_r%sp%02d.csv""" % (args.expnum,args.reqnum,args.attnum)
-    stdfile="""STDD%08d_r%sp%02d_red_catlist.csv""" % (args.expnum,args.reqnum,args.attnum)
-    objfile="""ObjD%08d_r%sp%02d_red_catlist.csv""" % (args.expnum,args.reqnum,args.attnum)
-    outfile="""OUTD%08d_r%sp%02d_red_catlist.csv""" % (args.expnum,args.reqnum,args.attnum)
+
+    allZPout = """allZP_D%08d_r%sp%02d.csv""" % (args.expnum, args.reqnum, args.attnum)
+    stdfile = """STDD%08d_r%sp%02d_red_catlist.csv""" % (args.expnum, args.reqnum,args.attnum)
+    objfile = """ObjD%08d_r%sp%02d_red_catlist.csv""" % (args.expnum, args.reqnum,args.attnum)
+    outfile = """OUTD%08d_r%sp%02d_red_catlist.csv""" % (args.expnum, args.reqnum,args.attnum)
+    
+    # Read STD file, sort it and rewrite
     stddf = pd.read_csv(stdfile).sort(['RA'], ascending=True)
-    #read  file and sort and save 
-    stddf.to_csv(stdfile,sep=',',index=False)
-    path='./'
+    stddf.to_csv(stdfile, sep=',', index=False)
+    path = './'
     all_files = glob.glob(os.path.join(path, "*Obj.csv"))     
     df = pd.concat((pd.read_csv(f) for f in all_files)).sort(['RA'], ascending=True)
 
     #read all file and sort and save 
     df.to_csv(objfile,sep=',',index=False)
 
-    stdracol=1; stddeccol=2
-    obsracol=1 ; obsdeccol=2 
-    matchTolArcsec=1.0 #1.0arcsec 
-    verbose=2
-    matchSortedStdwithObsCats(stdfile,objfile,outfile,stdracol,stddeccol,obsracol,obsdeccol,matchTolArcsec,verbose)
+    matchSortedStdwithObsCats(stdfile, objfile, outfile, 
+                              stdracol=1, stddeccol=2,
+                              obsracol=1, obsdeccol=2,
+                              matchTolArcsec=1, verbose=2)
 
     if not os.path.isfile(outfile):
 	print '%s does not seem to exist... exiting now...' % outfile
 	sys.exit(1)
+
     try:
 	data11=np.genfromtxt(outfile,dtype=None,delimiter=',',names=True)
         #New CUTS
@@ -827,7 +642,7 @@ def sigmaClipZPallCCDs(args):
 	NumStarsClipped=0
 	NumStarsAll    =0
 
-    hdr="EXPNUM,REQNUM,ATTNUM,NumStarsAll,NumStarsClipped,sigclipZP,stdsigclipzp\n"    
+    hdr = "EXPNUM,REQNUM,ATTNUM,NumStarsAll,NumStarsClipped,sigclipZP,stdsigclipzp\n"    
     line = """%d,%s,%d,%d,%d,%f,%f""" % (args.expnum,args.reqnum,args.attnum, NumStarsAll,NumStarsClipped,sigclipZP,stdsigclipzp)
     print line
     fout=open(allZPout,'w')
