@@ -17,10 +17,8 @@
     
     """
 import os
-import datetime
 import numpy as np
 import argparse
-import time
 import sys
 import healpy as hp
 import pandas as pd
@@ -30,15 +28,18 @@ def main():
     print " Start with DECADE-expCalib.py \n"
     """Create command line arguments"""
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument('--caldir', help='caldir is the calibration directory', default='/des002/devel/emorgan2/APASS_TWOMASS/',type=str)
-    parser.add_argument('--dir', help='dir is the production directory', default='/archive_data/desarchive/DEC/finalcut/Y5A1/HITS/',type=str)
-    parser.add_argument('--outdir', help='dir is the production directory', default='.',type=str)
+    parser.add_argument('--caldir', help='caldir is the calibration directory',
+                        default='/des002/devel/emorgan2/APASS_TWOMASS/', type=str)
+    parser.add_argument('--dir', help='dir is the production directory',
+                        default='/archive_data/desarchive/DEC/finalcut/Y5A1/HITS/', type=str)
+    parser.add_argument('--outdir', help='dir is the production directory', default='.', type=str)
     parser.add_argument('--expnum', help='expnum is queried', default=288940, type=int)
     parser.add_argument('--reqnum', help='reqnum is queried', default=3505, type=str)
     parser.add_argument('--attnum', help='attnum is queried', default=1, type=int)
     parser.add_argument('--magType', help='mag type to use (mag_psf, mag_auto, mag_aper_8, ...)', default='mag_psf')
-    parser.add_argument('--sex_mag_zeropoint', 
-                        help='default sextractor zeropoint to use to convert fluxes to sextractor mags (mag_sex = -2.5log10(flux) + sex_mag_zeropoint)', 
+    parser.add_argument('--sex_mag_zeropoint',
+                        help='default sextractor zeropoint to use to convert fluxes to sextractor mags \
+                             (mag_sex = -2.5log10(flux) + sex_mag_zeropoint)',
                         type=float, default=25.0)
     parser.add_argument('--verbose', help='verbosity level of output to screen (0,1,2,...)', default=0, type=int)
     parser.add_argument('--debug', help='debugging option', dest='debug', action='store_true', default=False)
@@ -48,45 +49,45 @@ def main():
     if args.verbose > 0: print args
    
     # Create all *std files
-   # getallccdfromAPASS92MASS(args)
-    
-    #-- ADDED NEW
-    #doset(args)
+    getallccdfromAPASS92MASS(args)
+    exit()
+    # -- ADDED NEW
+    # doset(args)
 
-    #WHEN NEEDED
-    #plot ra,dec of Sex-vs Y2Q1 for each CCD
+    # WHEN NEEDED
+    # plot ra,dec of Sex-vs Y2Q1 for each CCD
     if args.verbose >0 :
         plotradec_sexvsY2Q1(args)
 
-    #Estimate 3sigma Clipped Zeropoint for each CCD
-    #sigmaClipZP(args)
-    
-    #-
+    # Estimate 3sigma Clipped Zeropoint for each CCD
+    # sigmaClipZP(args)
+
     sigmaClipZPallCCDs(args)
 
-
-    #-
     ZP_OUTLIERS(args)
 
-    #--
+    # --
     Onefile(args)
 
-    #--
-    #plot ra,dec of matched stars for ALL CCDs
-    " Comment this line for grid production "
+    # --
+    # plot ra,dec of matched stars for ALL CCDs
+    #" Comment this line for grid production "
 #    plotradec_ZP(args)
+
+def are_you_here(fname):
+    # Check if file exists, if not - exit
+    if not os.path.exists(fname):
+        print '%s does not seem to exist... exiting now...' % fname
+        sys.exit(1)
+    else:
+        pass
 
 def read_catlist(args):
     # Open catalog created with make_red_catlist.py 
-    catlistFile="""D%08d_r%sp%02d_red_catlist.csv""" % (args.expnum, str(args.reqnum), args.attnum) #  name of file to look for
+    catlistFile="""D%08d_r%sp%02d_red_catlist.csv""" % (args.expnum, str(args.reqnum), args.attnum)
 
     # Check if file exists, exit if it does not                                                                                                                                                                
-    print "Looking for file %s ...\n" % catlistFile
-    if not os.path.exists(catlistFile):
-        print '%s does not seem to exist... exiting now...' % catlistFile
-        sys.exit(1)
-    else:
-        print " ... and it is here!\n"
+    are_you_here(catlistFile)
 
     # Read and return the catalog  
     return catlistFile, pd.read_csv(catlistFile)
@@ -98,7 +99,6 @@ def get_corners(dat, inx, off=0.):
     maxdec = max(dat['DEC_CENT'][inx], dat['DECC1'][inx], dat['DECC2'][inx], dat['DECC3'][inx], dat['DECC4'][inx]) + off
 
     return minra, maxra, mindec, maxdec
-
 
 ##################################
 # Get data from  PROD tables EXPOSURE IMAGE, WDF, and CATALOG,
@@ -140,13 +140,8 @@ def doset(args):
             stdlistFile ="""%s_std.csv"""   % (data['FILENAME'][i])        
             stdlistFile = args.outdir+'/'+stdlistFile.split('/')[-1]
 
-            if not os.path.isfile(objlistFile):
-                print '%s does not seem to exist... exiting now...' % objlistFile            
-                sys.exit(1)
-
-            if not os.path.isfile(stdlistFile):
-                print '%s does not seem to exist... exiting now...' % stdlistFile
-                sys.exit(1)
+            are_you_here(objlistFile)
+            are_you_here(stdlistFile)
 
             matchSortedStdwithObsCats(stdlistFile, objlistFile, matchlistout,
                                       stdracol=1, stddeccol=2,
@@ -249,6 +244,8 @@ def uniqlist(seq):
    [noDupes.append(i) for i in seq if not noDupes.count(i)]
    return noDupes
 
+
+
 ###################################
 #NEW  July 14,2016 
 #This is a FULL SKY 
@@ -296,11 +293,11 @@ def getallccdfromAPASS92MASS(args):
         data['RAC4']    = [roundra(x) for x in data['RAC4']]
 
     # Define corners of frame??
-    minra =  min(min(data['RA_CENT']),  min(data['RAC1']),  min(data['RAC2']),  min(data['RAC3']),  min(data['RAC4'])) - 0.1
-    mindec = min(min(data['DEC_CENT']), min(data['DECC1']), min(data['DECC2']), min(data['DECC3']), min(data['DECC4'])) - 0.1
-    maxra =  max(max(data['RA_CENT']),  max(data['RAC1']),  max(data['RAC2']),  max(data['RAC3']),  max(data['RAC4'])) + 0.1
-    maxdec = max(max(data['DEC_CENT']), max(data['DECC1']), max(data['DECC2']), max(data['DECC3']), max(data['DECC4'])) + 0.1
-
+    minra =  data[['RA_CENT', 'RAC1', 'RAC2', 'RAC3', 'RAC4']].min().min() - 0.1
+    mindec = data[['DEC_CENT','DECC1', 'DECC2', 'DECC3', 'DECC4']].min().min() - 0.1
+    maxra =  data[['RA_CENT', 'RAC1', 'RAC2', 'RAC3', 'RAC4']].max().max() + 0.1
+    maxdec = data[['DEC_CENT','DECC1', 'DECC2', 'DECC3', 'DECC4']].max().max() + 0.1
+   
     # Create string with output file name
     outfile = """STD%s""" % catlistFile
     
@@ -312,16 +309,16 @@ def getallccdfromAPASS92MASS(args):
     for i in  desipixlist:
         myfile="""/des002/devel/emorgan2/APASS_TWOMASS/apass_TWO_MASS_%d.csv""" %i
 
-        if  not os.path.exists(myfile):
-            print "%s was not copied try to link it" % myfile 
-            sys.exit()
+        are_you_here(myfile)
 
         df= pd.read_csv(myfile)
         good_data.append(df)
 
     # Put some limits on data, 
     # cut the frame definded with min/max Ra/De from catalog of standards
-    chunk = pd.concat(good_data, ignore_index=True).sort(['RAJ2000_APASS'], ascending=True)  # reorginize - list of pd frames to one pd frame 
+
+    # reorganize - list of pd frames to one pd frame
+    chunk = pd.concat(good_data, ignore_index=True).sort(['RAJ2000_APASS'], ascending=True)
     w1 = ( chunk['RAJ2000_2MASS'] > minra ) ; w2 = ( chunk['RAJ2000_2MASS'] < maxra )
     w3 = ( chunk['DEJ2000_2MASS'] > mindec ); w4 = ( chunk['DEJ2000_2MASS'] < maxdec )
     w5 = ( chunk[BANDname] >0 )
@@ -348,67 +345,9 @@ def getallccdfromAPASS92MASS(args):
         df.to_csv(stdlistFile, columns=col, sep=',', index=False)
 
 ##################################
-#New plots ONLY if NEEDED!!
-def plotradec_sexvsY2Q1(args):
-    import numpy as np
-    import string
-    import sys
-    import matplotlib.pyplot as plt
-
-    if args.verbose >0 : print args
-
-    catlistFile="""D%08d_r%sp%02d_red_catlist.csv""" % (args.expnum,args.reqnum,args.attnum)
-
-    if not os.path.isfile(catlistFile):
-        print '%s does not seem to exist... exiting now...' % catlistFile
-        sys.exit(1)
-
-    data=np.genfromtxt(catlistFile,dtype=None,delimiter=',',names=True)
-
-    for i in range(data['FILENAME'].size):
-        ra1=[];ra2=[];dec1=[];dec2=[]
-        catFilename = os.path.basename(data['FILENAME'][i])
-        rac  = data['RA_CENT'][i] ;     decc = data['DEC_CENT'][i]
-        rac1 = data['RAC1'][i] ;        decc1= data['DECC1'][i]
-        rac2 = data['RAC2'][i] ;        decc2= data['DECC2'][i]
-        rac3 = data['RAC3'][i] ;        decc3= data['DECC3'][i]
-        rac4 = data['RAC4'][i] ;        decc4= data['DECC4'][i]
-        CCDpoints=[[rac2,decc2],[rac,decc2],[rac3,decc3],[rac3,decc],[rac4,decc4],[rac,decc4],[rac1,decc1],[rac1,decc]]
-        ccdline = plt.Polygon(CCDpoints,  fill=None, edgecolor='g')
-
-        pnglistout="""%s.png""" % (catFilename)
-        objlistFile="""%s_Obj.csv""" % (catFilename)
-        stdlistFile="""%s_std.csv""" % (catFilename)        
-
-        if not os.path.isfile(objlistFile):
-            print '%s does not seem to exist... exiting now...' % objlistFile
-            sys.exit(1)
-
-        if not os.path.isfile(stdlistFile):
-            print '%s does not seem to exist... exiting now...' % stdlistFile
-            sys.exit(1)
-
-        # Read in the file...
-        ra1=np.genfromtxt(stdlistFile,dtype=float,delimiter=',',skiprows=1,usecols=(1))
-        dec1=np.genfromtxt(stdlistFile,dtype=float,delimiter=',',skiprows=1,usecols=(2))
-        ra2=np.genfromtxt(objlistFile,dtype=float,delimiter=',',skiprows=1,usecols=(1))
-        dec2=np.genfromtxt(objlistFile,dtype=float,delimiter=',',skiprows=1,usecols=(2))
-        plt.axes()
-        plt.gca().add_patch(ccdline)
-        plt.scatter(ra1,dec1,marker='.')
-        plt.scatter(ra2,dec2,c='r', marker='+')
-        line = plt.Polygon(CCDpoints,  fill=None, edgecolor='r')
-
-        plt.title(catFilename, color='#afeeee') 
-        plt.savefig(pnglistout, format="png" )
-
-        ra1=[];ra2=[];dec1=[];dec2=[]
-        
-        plt.clf() 
-
-##################################
 #Matching FILES MAKE SURE the Cols are still in the same order
-def matchSortedStdwithObsCats(f1,f2,outfile,stdracol=1,stddeccol=2,obsracol=1,obsdeccol=2,matchTolArcsec=1,verbose=1):
+def matchSortedStdwithObsCats(f1, f2, outfile,
+                              stdracol=1, stddeccol=2, obsracol=1, obsdeccol=2, matchTolArcsec=1,verbose=1):
     print "Looking for a match...", f2
     # Open the standard star CSV file and read the first line as list...
     fs = pd.read_csv(f1, delimiter=',')
@@ -441,7 +380,7 @@ def matchSortedStdwithObsCats(f1,f2,outfile,stdracol=1,stddeccol=2,obsracol=1,ob
 
         # Increment line count from observed data file...
         linecnt += 1
-        if ( (linecnt/1000.0 == int(linecnt/1000.0)) and (verbose > 1) ):
+        if linecnt/1000.0 == int(linecnt/1000.0) and verbose > 1 :
             print '\r'+'Progress (lines read from observed catalog):  ',linecnt,
             sys.stdout.flush()
 
@@ -451,11 +390,11 @@ def matchSortedStdwithObsCats(f1,f2,outfile,stdracol=1,stddeccol=2,obsracol=1,ob
         if obsline == ['']:
             done_obs = True
         else:
-            obsra = float(obsline[1])
-            obsdec = float(obsline[2])
+            obsra = float(obsline[obsracol])
+            obsdec = float(obsline[obsdeccol])
             cosd = np.cos(np.radians(obsdec))
             # Check if there is a match for object coordinates in standard stars file
-            # calculate distnace and check if it is within given limit 
+            # calculate distance and check if it is within given limit
             delta2 = np.array((obsra - fs['RA'])*(obsra - fs['RA'])*cosd*cosd+(obsdec-fs['DEC'])*(obsdec-fs['DEC']))
             mtch = fs.iloc[np.where(delta2 < tol2)]
             
@@ -465,7 +404,7 @@ def matchSortedStdwithObsCats(f1,f2,outfile,stdracol=1,stddeccol=2,obsracol=1,ob
                     out_row = pd.DataFrame([[m_id] + mtch.values.tolist()[0] + obsline], columns=outputHeader)
                     out = out.append(out_row, ignore_index=True)
  
-   # Change dtype so output file looks nice 
+    # Change dtype so output file looks nice
     out.MATCHID = out.MATCHID.astype(int)
     out.MATCHID_1 = out.MATCHID_1.astype(int)
     out.OBJECT_NUMBER_2 = out.OBJECT_NUMBER_2.astype(int)
@@ -476,16 +415,43 @@ def matchSortedStdwithObsCats(f1,f2,outfile,stdracol=1,stddeccol=2,obsracol=1,ob
     # close the input object file
     fd2.close()
   
+
+def get_new_cuts(in_file):
+    from astropy.stats import sigma_clip
+
+    # add new cuts for Apass9-2mass data set
+    mdata = pd.read_csv(in_file, delimiter=',')
+
+    # New CUTS
+    data = mdata.loc[(mdata['MAG_2'] - mdata['WAVG_MAG_PSF_1'] - 25.0 < -10) &
+                     (mdata['MAG_2'] - mdata['WAVG_MAG_PSF_1'] - 25.0 > -40)]
+
+    if data.shape[0] != 0:
+        delt_mag_data = data['MAG_2'] - data['WAVG_MAG_PSF_1'] - 25.0
+        filtered_data = sigma_clip(delt_mag_data, sigma=3, iters=3, cenfunc=np.mean, copy=True)
+        NumStarsClipped = filtered_data.count()
+        NumStarsAll = len(delt_mag_data)
+
+        if NumStarsClipped > 2:
+            sigclipZP = np.mean(filtered_data)
+            stdsigclipzp = np.std(filtered_data) / np.sqrt(NumStarsClipped)
+        else:
+            sigclipZP = -999
+            stdsigclipzp = -999
+    else:
+        sigclipZP = -999
+        stdsigclipzp = -999
+        NumStarsClipped = 0
+        NumStarsAll = 0
+
+    return sigclipZP, stdsigclipzp, NumStarsClipped, NumStarsAll
+
 ##################################
 # Get 3sigma clipped Zero point and iterater
 ##################################
-
 def sigmaClipZP(args):
-    import astropy 
-    from astropy.stats import sigma_clip
-    import string
-
-    if args.verbose >0 : print args
+    if args.verbose > 0:
+        print args
     
     catlistFile, data1 = read_catlist(args)
     
@@ -499,34 +465,9 @@ def sigmaClipZP(args):
         catFilename = os.path.basename(row)
         matchListFile = "%s_match.csv" % (catFilename)        
 
-        if not os.path.isfile(matchListFile):
-            print '%s does not seem to exist... exiting now...' % matchListFile
-            sys.exit(1)
+        are_you_here(matchListFile)
 
-        #add new cuts for Apass9-2mass data set
-        mdata = pd.read_csv(matchListFile, delimiter=',')
-
-        #New CUTS
-        data = mdata.loc[(mdata['MAG_2'] - mdata['WAVG_MAG_PSF_1'] - 25.0 < -10) & 
-                               (mdata['MAG_2'] - mdata['WAVG_MAG_PSF_1'] - 25.0 > -40) ]
-        
-        if  data.shape[0] != 0:
-            delt_mag_data = data['MAG_2'] -data['WAVG_MAG_PSF_1'] - 25.0
-            filtered_data = sigma_clip(delt_mag_data, sigma=3, iters=3, cenfunc=np.mean, copy=True)
-            NumStarsClipped = filtered_data.count()
-            NumStarsAll = len(delt_mag_data)
-       
-            if  NumStarsClipped >2:
-                sigclipZP = np.mean(filtered_data)
-                stdsigclipzp = np.std(filtered_data) / np.sqrt(NumStarsClipped)
-            else:
-                sigclipZP = -999
-                stdsigclipzp = -999
-        else:
-            sigclipZP = -999
-            stdsigclipzp = -999
-            NumStarsClipped = 0
-            NumStarsAll = 0
+        sigclipZP, stdsigclipzp, NumStarsClipped, NumStarsAll = get_new_cuts(matchListFile)
 
         line = """%s,%d,%d,%f,%f,%s""" % (row, NumStarsAll, NumStarsClipped, sigclipZP, stdsigclipzp, args.magType)
         fout.write(line + '\n')
@@ -534,9 +475,7 @@ def sigmaClipZP(args):
     fout.close()        
 
     ZeroListFile="""Zero_D%08d_r%sp%02d.csv""" % (args.expnum,args.reqnum,args.attnum)
-    if not os.path.isfile(catlistFile):
-        print '%s does not seem to exist... exiting now...' % ZeroListFile
-        sys.exit(1)
+    are_you_here(ZerolistFile)
 
     MergedFile="""Merged_D%08d_r%sp%02d.csv""" % (args.expnum,args.reqnum,args.attnum)
     jointwocsv(catlistFile,ZeroListFile,MergedFile) 
@@ -579,12 +518,9 @@ def roundra(ra):
 ##################################
 # Get 3sigma clipped Zero point and iterater
 ##################################
-
 def sigmaClipZPallCCDs(args):
-    import sys,os,glob,math,string
-    from astropy.stats import sigma_clip
-    from numpy import mean
-    import numpy.ma as ma 
+    import os,glob
+
 
     if args.verbose >0 : print args
 
@@ -601,53 +537,23 @@ def sigmaClipZPallCCDs(args):
     df = pd.concat((pd.read_csv(f) for f in all_files)).sort(['RA'], ascending=True)
 
     #read all file and sort and save 
-    df.to_csv(objfile,sep=',',index=False)
+    df.to_csv(objfile, sep=',', index=False)
 
     matchSortedStdwithObsCats(stdfile, objfile, outfile, 
                               stdracol=1, stddeccol=2,
                               obsracol=1, obsdeccol=2,
                               matchTolArcsec=1, verbose=2)
 
-    if not os.path.isfile(outfile):
-	print '%s does not seem to exist... exiting now...' % outfile
-	sys.exit(1)
-
-    try:
-	data11=np.genfromtxt(outfile,dtype=None,delimiter=',',names=True)
-        #New CUTS
-	w0=(data11['MAG_2']-data11['WAVG_MAG_PSF_1']-25.0) < -10
-	w1=(data11['MAG_2']-data11['WAVG_MAG_PSF_1']-25.0) > -40
-	data=data11[ w0 & w1 ]
-
-        # Identify band...      It is now BAND_2!!
-	bandList = data['BAND_2'].tolist()
-	band = bandList[0].upper()
-
-	WAVG_MAG_PSF_1       =data['WAVG_MAG_PSF_1']
-	MAG_2                =data['MAG_2']
-	delt_mag_data        =MAG_2 -WAVG_MAG_PSF_1 -25.0
-	filtered_data        =sigma_clip(delt_mag_data, sigma=3, iters=3, cenfunc=np.mean, copy=True)
-	NumStarsClipped      =(filtered_data).count()
-	NumStarsAll          =len(filtered_data)
-
-	if  NumStarsClipped >2:
-		sigclipZP=np.mean(filtered_data)
-		stdsigclipzp=np.std(filtered_data)/math.sqrt(NumStarsClipped)
-	else:
-		sigclipZP=-999
-		stdsigclipzp=-999
-    except:
-	sigclipZP      =-999
-	stdsigclipzp   =-999
-	NumStarsClipped=0
-	NumStarsAll    =0
+    are_you_here(outfile)
+    sigclipZP, stdsigclipzp, NumStarsClipped, NumStarsAll = get_new_cuts(outfile)
 
     hdr = "EXPNUM,REQNUM,ATTNUM,NumStarsAll,NumStarsClipped,sigclipZP,stdsigclipzp\n"    
-    line = """%d,%s,%d,%d,%d,%f,%f""" % (args.expnum,args.reqnum,args.attnum, NumStarsAll,NumStarsClipped,sigclipZP,stdsigclipzp)
+    line = """%d,%s,%d,%d,%d,%f,%f""" % (args.expnum, args.reqnum, args.attnum, NumStarsAll, NumStarsClipped,
+                                         sigclipZP, stdsigclipzp)
     print line
-    fout=open(allZPout,'w')
+    fout = open(allZPout, 'w')
     fout.write(hdr)
-    fout.write(line+'\n')
+    fout.write(line + '\n')
 
 ###################################
 # Detect OUTLIERS- and update files
@@ -655,8 +561,6 @@ def sigmaClipZPallCCDs(args):
 # NEED to ADD LOF-see JoinZP3
 ###################################
 def ZP_OUTLIERS(args):
-    import pandas as pd
-    import numpy as np
     import os,sys,glob
     import math
     import sklearn
@@ -673,9 +577,7 @@ def ZP_OUTLIERS(args):
     #    sys.exit(1)
 
     MergedFile="""Merged_D%08d_r%sp%02d.csv""" % (args.expnum,args.reqnum,args.attnum)
-    if not os.path.isfile(MergedFile):
-        print '%s does not seem to exist... exiting now...' % MergedFile
-        sys.exit(1)
+    are_you_here(MergedFile)
 
     fout="""Merg_allZP_D%08d_r%sp%02d.csv""" % (args.expnum,args.reqnum,args.attnum)
 
@@ -704,8 +606,8 @@ def ZP_OUTLIERS(args):
 
     df1.to_csv(MergedFile,sep=',',index=False)
 
-#That will not work around 0-360
-#New
+    # That will not work around 0-360
+    # New
     w= ( df1['RA_CENT'] >150 ) 
     df1['roundRA_CENT']=np.where(w, 360.-df1['RA_CENT'], df1['RA_CENT'])
  
@@ -717,265 +619,6 @@ def ZP_OUTLIERS(args):
 
     cols=['FILENAME','EXPNUM','CCDNUM','NewZP','NewZPrms','NewZPFlag']
     df1.to_csv(fout,columns=cols,sep=',',index=False)
-    
-    #########################################################
-    ######### Extra ONLY if the Full Exposure have problem!
-    #########################################################
-    #FIND OUTLIER via Local Outlier Factor(LOF) see
-    #Ref:
-    #  http://www.dbs.ifi.lmu.de/Publikationen/Papers/LOF.pdf
-    #  THIS is a TEST
-    #########################################################
-    #try
-    #mask = ( df1['NewZPFlag3'] < 0 )
-    #if ( df1[mask]['x'].size > 0 ):
-        #data = df1[['x','y','DiffZP1']]            
-        ##You can change below value for different MinPts
-        ##m=5,10,15,30,35,40,45,50,55 testing
-        #m=10
-
-        #knndist, knnindices = knn(data,3)
-        #reachdist, reachindices = reachDist(data,m,knndist)
-        
-        #irdMatrix = lrd(m,reachdist)
-        #lofScores = lof(irdMatrix,m,reachindices) 
-        #scores= pd.DataFrame(lofScores,columns=['Score'])
-        #mergedData=pd.merge(data,scores,left_index=True,right_index=True)
-        #mergedData['flag'] = mergedData.apply(returnFlag,axis=1)
-        #Outliers = mergedData[(mergedData['flag']==1)]
-        #Normals = mergedData[(mergedData['flag']==0)]
-
-        #mergedData1=pd.concat([df1, mergedData], axis=1) 
-        #mergedData1.to_csv(fout,sep=',',index=False)
-
-        #print Outliers
-        
-        #pnglistout0="""%s_ZP_Warning.png""" % (catlistFile)
-        #pnglistout1="""%s_ZP_Score.png""" % (catlistFile)
-        ################
-        # New plot in X,Y
-        # NEED to convert the RA, DEC vs the expCal Zero-point mag 
-        # New plot SCORE - histogram 
-        ################
-
-
-        #l1=plt.scatter(Normals['x'],Normals['y'],Normals['DiffZP1'],c='b',marker='o')
-        #l2=plt.scatter(Outliers['x'],Outliers['y'],Outliers['DiffZP1'],c='r',marker='*')
-        #plt.legend((l1,l2),('Regular','Outlier'),scatterpoints=1,loc='upper left',ncol=1, fontsize=9)
-        #plt.title('Warning D%08d_r%sp%02d %s-Band' %(args.expnum,args.reqnum,args.attnum,BAND))   
-        #plt.xlabel(r"$X$", size=18)
-        #plt.ylabel(r"$Y$", size=18)
-        #plt.xlim([min(data['x']),max(data['x'])])
-        #plt.ylim([min(data['y']),max(data['y'])])
-        #plt.savefig(pnglistout0, format="png" )
-        #plt.clf() 
-
-        #SCORE - histogram
-        #plt.hist(mergedData['Score'],bins=100,facecolor='red')
-        #plt.xlabel('LOF Score')
-        #plt.ylabel('Frequency')
-        #plt.title('Outlier Scores')
-        #plt.savefig(pnglistout1, format="png" )
-        #plt.clf() 
-
-        
-##################################            
-#New plots for Zero-Points
-def plotradec_ZP(args):
-    import numpy as np
-    import matplotlib.pyplot as plt
-    import matplotlib as mpl
-    import sys
-
-    if args.verbose >0 : print args
-
-    catlistFile="""D%08d_r%sp%02d_red_catlist.csv""" % (args.expnum,args.reqnum,args.attnum)
-    if not os.path.isfile(catlistFile):
-        print '%s does not seem to exist... exiting now...' % catlistFile
-        sys.exit(1)
-
-    #ZeroListFile="""Zero_D%08d_r%sp%02d.csv""" % (args.expnum,args.reqnum,args.attnum)
-    #if not os.path.isfile(catlistFile):
-    #    print '%s does not seem to exist... exiting now...' % ZeroListFile
-    #    sys.exit(1)        
-    #Mergedout="""Merged_D%08d_r%sp%02d.csv""" % (args.expnum,args.reqnum,args.attnum)    
-    #print catlistFile,ZeroListFile,Mergedout
-    #jointwocsv(catlistFile,ZeroListFile,Mergedout)
-    #MergedFile="""Merg_allZP_D%08d_r%sp%02d.csv""" % (args.expnum,args.reqnum,args.attnum)
-
-    MergedFile="""Merged_D%08d_r%sp%02d.csv""" % (args.expnum,args.reqnum,args.attnum)    
-    data=np.genfromtxt(MergedFile,dtype=None,delimiter=',',names=True)
-    stdRA = np.std(data['RA_CENT'])
-    if stdRA > 20:
-        data['RA_CENT']=[roundra(x) for x in data['RA_CENT']]
-        data['RAC1']   =[roundra(x) for x in data['RAC1']]
-        data['RAC2']   =[roundra(x) for x in data['RAC2']]
-        data['RAC3']   =[roundra(x) for x in data['RAC3']]
-        data['RAC4']   =[roundra(x) for x in data['RAC4']]
-    
-    #    print " Unexpected value of the RA spred stdRA=%f \n" % stdRA
-    #    sys.exit(1)
-    w0=(data['ZP']==-999)
-    w1=(data['ZP']>-999)
-
-    data0=data[w0]
-    data1=data[w1]
-
-    if (len(data1)==0):
-         sys.exit(1)
-
-    BAND=data1['BAND'][0]
-    zpmedian=np.median(data1['ZP'])
-
-    pnglistout0="""%s_ZP.png""" % (catlistFile)
-    pnglistout1="""%s_deltaZP.png""" % (catlistFile)
-    pnglistout2="""%s_NumClipstar.png""" % (catlistFile)
-    pnglistout3="""%s_CCDsvsZPs.png""" % (catlistFile)
-
-    w2=( data['NewZPFlag'] ==0 )
-    w3=( data['NewZPFlag'] ==1 )
-    
-    #w3=(data('NewZPFlag') >0 )
-    data2=data[w2]
-    data3=data[w3]    
-    pnglistout4="""%s_NewZP.png""" % (catlistFile)
-    pnglistout5="""%s_NewdeltaZP.png""" % (catlistFile)
-    
-    minra=min(min(data['RA_CENT']),min(data['RAC1']),min(data['RAC2']),min(data['RAC3']),min(data['RAC4']))-.075
-    mindec=min(min(data['DEC_CENT']),min(data['DECC1']),min(data['DECC2']),min(data['DECC3']),min(data['DECC4']))-.075
-    maxra=max(max(data['RA_CENT']),max(data['RAC1']),max(data['RAC2']),max(data['RAC3']),max(data['RAC4']))+.075
-    maxdec=max(max(data['DEC_CENT']),max(data['DECC1']),max(data['DECC2']),max(data['DECC3']),max(data['DECC4']))+.075
-
-    ################
-    #New plot the RA, DEC vs the expCal Zero-point mag 
-    ################
-    l1=plt.scatter(data0['RA_CENT'], data0['DEC_CENT'], c=data0['ZP'], s=15, marker=(25,0), cmap=mpl.cm.spectral,vmin=np.min(data1['ZP']), vmax=np.max(data1['ZP']))
-    l2=plt.scatter(data1['RA_CENT'], data1['DEC_CENT'], c=data1['ZP'], s=500, marker=(5,0), cmap=mpl.cm.spectral,vmin=np.min(data1['ZP']), vmax=np.max(data1['ZP']))
-    cbar=plt.colorbar(ticks=np.linspace(np.min(data1['ZP']),np.max(data1['ZP']), 4))    
-    cbar.set_label('Zero-Point Mag')
-    #plt.legend((l1,l2),('No Y2Q1 data','ExpCal'),scatterpoints=1,loc='upper left',ncol=1, fontsize=9)
-    plt.legend((l1,l2),('No APASS data','ExpCal'),scatterpoints=1,loc='upper left',ncol=1, fontsize=9)
-
-    for i in range(data['RA_CENT'].size):
-        CCDpoints=[[data['RAC2'][i],data['DECC2'][i]],[data['RAC3'][i],data['DECC3'][i]],[data['RAC4'][i],data['DECC4'][i]],[data['RAC1'][i],data['DECC1'][i]]]
-        ccdline = plt.Polygon(CCDpoints,  fill=None, edgecolor='k')
-        plt.gca().add_patch(ccdline)
-
-    plt.title('D%08d_r%sp%02d %s-Band ZP_Median=%.3f ' %(args.expnum,args.reqnum,args.attnum,BAND,zpmedian))   
-    plt.xlabel(r"$RA$", size=18)
-    plt.ylabel(r"$DEC$", size=18)
-    plt.xlim([minra,maxra])
-    plt.ylim([mindec,maxdec])
-    plt.savefig(pnglistout0, format="png" )
-    plt.clf() 
-
-    ################
-    #New plot the RA, DEC vs the expCal Delta Zero-point mag from median 
-    ################
-    
-    l1=plt.scatter(data0['RA_CENT'], data0['DEC_CENT'], c=data0['ZP'], s=15, marker=(25,0), cmap=mpl.cm.spectral,vmin=np.min(data1['ZP']), vmax=np.max(data1['ZP']))
-    l2=plt.scatter(data1['RA_CENT'], data1['DEC_CENT'], c=1000*(data1['ZP']-zpmedian), s=500, marker=(5,0), cmap=mpl.cm.spectral,vmin=min(1000*(data1['ZP']-zpmedian)), vmax=max(1000*(data1['ZP']-zpmedian)))
-    cbar=plt.colorbar(ticks=np.linspace(min(1000*(data1['ZP']-zpmedian)),max(1000*(data1['ZP']-zpmedian)), 4))    
-    cbar.set_label('Delta Zero-Point mili-Mag')
-    plt.legend((l1,l2),('No APASS data','ExpCal'),scatterpoints=1,loc='upper left',ncol=1, fontsize=9)
-
-    for i in range(data['RA_CENT'].size):
-        CCDpoints=[[data['RAC2'][i],data['DECC2'][i]],[data['RAC3'][i],data['DECC3'][i]],[data['RAC4'][i],data['DECC4'][i]],[data['RAC1'][i],data['DECC1'][i]]]
-        ccdline = plt.Polygon(CCDpoints,  fill=None, edgecolor='k')
-        plt.gca().add_patch(ccdline)
-
-    plt.title('D%08d_r%sp%02d %s-Band ZP_Median=%.3f ' %(args.expnum,args.reqnum,args.attnum,BAND,zpmedian))   
-
-    plt.xlabel(r"$RA$", size=18)
-    plt.ylabel(r"$DEC$", size=18)
-    plt.xlim([minra,maxra])
-    plt.ylim([mindec,maxdec])
-    plt.savefig(pnglistout1, format="png" )
-    plt.clf() 
-
-    ################
-    #New plot RA DEC vs Number of stars clipped stars from expCal 
-    ################
-    l1=plt.scatter(data0['RA_CENT'], data0['DEC_CENT'], c=data0['Nclipped'], s=15, marker=(25,0), cmap=mpl.cm.spectral)
-    l2=plt.scatter(data1['RA_CENT'], data1['DEC_CENT'], c=data1['Nclipped'], s=500, marker=(5,0), cmap=mpl.cm.spectral)
-
-    cbar=plt.colorbar()
-    cbar.set_label('No. 3 $\sigma$ clipped Stars')
-    plt.legend((l1,l2),('No APASS data','expCal'),scatterpoints=1,loc='upper left',ncol=1, fontsize=9)
-
-    for i in range(data['RA_CENT'].size):
-        CCDpoints=[[data['RAC2'][i],data['DECC2'][i]],[data['RAC3'][i],data['DECC3'][i]],[data['RAC4'][i],data['DECC4'][i]],[data['RAC1'][i],data['DECC1'][i]]]
-        ccdline = plt.Polygon(CCDpoints,  fill=None, edgecolor='k')
-        plt.gca().add_patch(ccdline)
-   
-    plt.title('D%08d_r%sp%02d %s-Band ZP_Median=%.3f ' %(args.expnum,args.reqnum,args.attnum,BAND,zpmedian))
-   
-    plt.xlabel(r"$RA$", size=18)
-    plt.ylabel(r"$DEC$", size=18)
-    plt.xlim([minra,maxra])
-    plt.ylim([mindec,maxdec])
-    plt.savefig(pnglistout2, format="png" )
-    plt.clf() 
-
-################    
-#New plot CCDs vs ZP from expCal
-    plt.errorbar(data0['CCDNUM'], data0['ZP'], data0['ZPrms'], fmt='o',label='No APASS data')
-    plt.errorbar(data1['CCDNUM'], data1['ZP'], data1['ZPrms'], fmt='o',label='expCal')
-    legend = plt.legend(loc='upper center', shadow=None, fontsize=12)
-    legend.get_frame().set_facecolor('#00FFCC')
-    plt.title('D%08d_r%sp%02d %s-Band ZP_Median=%.3f ' %(args.expnum,args.reqnum,args.attnum,BAND,zpmedian))
-    plt.xlabel(r"$CCDs$", size=18)
-    plt.ylabel(r"$Zero Points$", size=18)
-    plt.ylim(min(data1['ZP'])-.01,max(data1['ZP'])+.02)
-    plt.xlim(min(data1['CCDNUM'])-1.5,max(data1['CCDNUM'])+1.5)
-    plt.savefig(pnglistout3, format="png" )
-    plt.clf()
-
-    ################
-    #New plot the RA, DEC vs the NEW Zero-point mag 
-    ################
-    l1=plt.scatter(data2['RA_CENT'], data2['DEC_CENT'], c=data2['NewZP'], s=500, marker=(5,0), cmap=mpl.cm.spectral,vmin=np.min(data2['NewZP']), vmax=np.max(data2['NewZP']))
-    l2=plt.scatter(data3['RA_CENT'], data3['DEC_CENT'], c=data3['NewZP'], s=25, marker=(25,0), cmap=mpl.cm.spectral,vmin=np.min(data2['NewZP']), vmax=np.max(data2['NewZP']))
-    cbar=plt.colorbar(ticks=np.linspace(np.min(data2['NewZP']),np.max(data2['NewZP']), 4))    
-    cbar.set_label('Zero-Point Mag')
-    #CHANGE
-    plt.legend((l1,l2),('CCD','allEXP'),scatterpoints=1,loc='upper left',ncol=1, fontsize=9)
-    for i in range(data['RA_CENT'].size):
-        CCDpoints=[[data['RAC2'][i],data['DECC2'][i]],[data['RAC3'][i],data['DECC3'][i]],[data['RAC4'][i],data['DECC4'][i]],[data['RAC1'][i],data['DECC1'][i]]]
-        ccdline = plt.Polygon(CCDpoints,  fill=None, edgecolor='k')
-        plt.gca().add_patch(ccdline)
-
-    plt.title('D%08d_r%sp%02d %s-Band ' %(args.expnum,args.reqnum,args.attnum,BAND))   
-    plt.xlabel(r"$RA$", size=18)
-    plt.ylabel(r"$DEC$", size=18)
-    plt.xlim([minra,maxra])
-    plt.ylim([mindec,maxdec])
-    plt.savefig(pnglistout4, format="png" )
-    plt.clf() 
-
-    ################
-    #New plot the RA, DEC vs the NEW Delta Zero-point mag from median 
-    ################
-    l1=plt.scatter(data2['RA_CENT'], data2['DEC_CENT'], c=data2['DiffZP1'], s=500, marker=(5,0), cmap=mpl.cm.spectral,vmin=np.min(data2['DiffZP1']), vmax=np.max(data2['DiffZP1']))   
-    l2=plt.scatter(data3['RA_CENT'], data3['DEC_CENT'], c=data3['DiffZP1'], s=25, marker=(25,0), cmap=mpl.cm.spectral,vmin=min(data2['DiffZP1']), vmax=max(data2['DiffZP1']))
-    cbar=plt.colorbar(ticks=np.linspace(min(data2['DiffZP1']),max(data2['DiffZP1']), 4))    
-    cbar.set_label('Delta Zero-Point mili-Mag')
-    plt.legend((l1,l2),('CDD','allExP'),scatterpoints=1,loc='upper left',ncol=1, fontsize=9)
-
-    for i in range(data['RA_CENT'].size):
-        CCDpoints=[[data['RAC2'][i],data['DECC2'][i]],[data['RAC3'][i],data['DECC3'][i]],[data['RAC4'][i],data['DECC4'][i]],[data['RAC1'][i],data['DECC1'][i]]]
-        ccdline = plt.Polygon(CCDpoints, fill=None, edgecolor='k')
-        plt.gca().add_patch(ccdline)
-
-    plt.title('D%08d_r%sp%02d %s-Band ' %(args.expnum,args.reqnum,args.attnum,BAND))   
-
-    plt.xlabel(r"$RA$", size=18)
-    plt.ylabel(r"$DEC$", size=18)
-    plt.xlim([minra,maxra])
-    plt.ylim([mindec,maxdec])
-    plt.savefig(pnglistout5, format="png" )
-    plt.clf() 
-#
 #
 ##################################
 # Read SEX_table filemane_fullcat.fits then 
@@ -1023,16 +666,14 @@ def apply_ZP_Sexcatalogfitstocsv(catFilename,EXPNUM,CCDNUM,zeropoint,zeropoint_r
 #To Do
 #Still needs new args for type of output csv/fits
 def Onefile(args):
-    import os,sys,glob
-    import csv
+    import os,glob
     import pandas as pd
     from astropy.io import fits
 
     if args.verbose >0 : print args
 
     catlistFile="""Merg_allZP_D%08d_r%sp%02d.csv""" % (args.expnum,args.reqnum,args.attnum)
-    if not os.path.isfile(catlistFile):
-        print '%s does not seem to exist...' % catlistFile
+    are_you_here(catlistFile)
 
     fout = """D%08d_r%sp%02d_ZP.csv""" % (args.expnum, args.reqnum, args.attnum)
     fitsout = """D%08d_r%sp%02d_ZP.fits""" % (args.expnum, args.reqnum, args.attnum)
@@ -1057,8 +698,8 @@ def Onefile(args):
 
     big_frame.to_csv(fout, sep=',', columns=Cols,index=False)
 
-#Later Please ADD new args for args.fits/args.csv  with if one/or and
-#Currently BOTH csv and fits are written to disk with  NO ARGS!
+    # Later Please ADD new args for args.fits/args.csv  with if one/or and
+    # Currently BOTH csv and fits are written to disk with  NO ARGS!
     
     col1   = fits.Column(name='ID', format='J', array=np.array(big_frame['ID']))
     col2   = fits.Column(name='EXPNUM', format='I',array=np.array(big_frame['EXPNUM']))
@@ -1120,7 +761,6 @@ def reachDist(df, MinPts, knnDist):
 ##################
 #lrd calculates the Local Reachability Density
 def lrd(MinPts,knnDistMinPts):
-    import numpy as np
     return (MinPts / np.sum(knnDistMinPts, axis=1))
 
 ##################
