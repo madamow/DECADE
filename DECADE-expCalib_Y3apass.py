@@ -47,24 +47,27 @@ def main():
     args = parser.parse_args()
                     
     if args.verbose > 0: print args
-   
-    # Create all *std files
-    getallccdfromAPASS92MASS(args)
-    exit()
-    # -- ADDED NEW
-    # doset(args)
 
+    # Create all *std files
+ #   getallccdfromAPASS92MASS(args)
+    #exit()
+    # -- ADDED NEW
+  #  doset(args)
+    #exit()
     # WHEN NEEDED
     # plot ra,dec of Sex-vs Y2Q1 for each CCD
     if args.verbose >0 :
         plotradec_sexvsY2Q1(args)
 
     # Estimate 3sigma Clipped Zeropoint for each CCD
-    # sigmaClipZP(args)
+#    sigmaClipZP(args)
+#    exit()
 
-    sigmaClipZPallCCDs(args)
+#    sigmaClipZPallCCDs(args)
+#    exit()
 
     ZP_OUTLIERS(args)
+    exit()
 
     # --
     Onefile(args)
@@ -73,6 +76,7 @@ def main():
     # plot ra,dec of matched stars for ALL CCDs
     #" Comment this line for grid production "
 #    plotradec_ZP(args)
+
 
 def are_you_here(fname):
     # Check if file exists, if not - exit
@@ -92,11 +96,11 @@ def read_catlist(args):
     # Read and return the catalog  
     return catlistFile, pd.read_csv(catlistFile)
 
-def get_corners(dat, inx, off=0.):
-    minra = min(dat['RA_CENT'][inx], dat['RAC1'][inx], dat['RAC2'][inx], dat['RAC3'][inx], dat['RAC4'][inx]) - off
-    maxra = max(dat['RA_CENT'][inx], dat['RAC1'][inx], dat['RAC2'][inx], dat['RAC3'][inx], dat['RAC4'][inx]) + off
-    mindec = min(dat['DEC_CENT'][inx], dat['DECC1'][inx], dat['DECC2'][inx], dat['DECC3'][inx], dat['DECC4'][inx]) - off
-    maxdec = max(dat['DEC_CENT'][inx], dat['DECC1'][inx], dat['DECC2'][inx], dat['DECC3'][inx], dat['DECC4'][inx]) + off
+def get_corners(dat, off=0.):
+    minra = dat[['RA_CENT', 'RAC1', 'RAC2', 'RAC3', 'RAC4']].min() - off
+    maxra = dat[['RA_CENT', 'RAC1', 'RAC2', 'RAC3', 'RAC4']].max() + off
+    mindec = dat[['DEC_CENT', 'DECC1', 'DECC2', 'DECC3', 'DECC4']].min() - off
+    maxdec = dat[['DEC_CENT', 'DECC1', 'DECC2', 'DECC3', 'DECC4']].max() + off
 
     return minra, maxra, mindec, maxdec
 
@@ -110,34 +114,31 @@ def doset(args):
 
     catlistFile, data = read_catlist(args)
 
-    for i in range(data['FILENAME'].size):
-        if os.path.isfile(data['FILENAME'][i]):
-            Read_Sexcatalogfitstocsv(args,data['FILENAME'][i],data['BAND'][i])
+    for i, row in data.iterrows():
+        if os.path.isfile(row['FILENAME']):
+            Read_Sexcatalogfitstocsv(args,row['FILENAME'],row['BAND'])
             
-            minra, maxra, mindec, maxdec = get_corners(data, i, off=0.)
-
-            rac  = data['RA_CENT'][i]
-            decc = data['DEC_CENT'][i]
+            minra, maxra, mindec, maxdec = get_corners(row, off=0.)
             
-            desipixc = getipix(128, data['RA_CENT'][i], data['DEC_CENT'][i])
-            desipix1 = getipix(128, data['RAC1'][i], data['DECC1'][i])
-            desipix2 = getipix(128, data['RAC2'][i], data['DECC2'][i])
-            desipix3 = getipix(128, data['RAC3'][i], data['DECC3'][i])
-            desipix4 = getipix(128, data['RAC4'][i], data['DECC4'][i])
+            desipixc = getipix(128, row['RA_CENT'], row['DEC_CENT'])
+            desipix1 = getipix(128, row['RAC1'], row['DECC1'])
+            desipix2 = getipix(128, row['RAC2'], row['DECC2'])
+            desipix3 = getipix(128, row['RAC3'], row['DECC3'])
+            desipix4 = getipix(128, row['RAC4'], row['DECC4'])
 
-            desipix12 = getipix(128, data['RAC1'][i], data['DEC_CENT'][i])
-            desipix23 = getipix(128, data['RA_CENT'][i], data['DECC2'][i])
-            desipix34 = getipix(128, data['RAC3'][i], data['DEC_CENT'][i])
-            desipix14 = getipix(128, data['RA_CENT'][i], data['DECC4'][i]) 
+            desipix12 = getipix(128, row['RAC1'], row['DEC_CENT'])
+            desipix23 = getipix(128, row['RA_CENT'], row['DECC2'])
+            desipix34 = getipix(128, row['RAC3'], row['DEC_CENT'])
+            desipix14 = getipix(128, row['RA_CENT'], row['DECC4']) 
 
-            desipixlist= desipixc,desipix1,desipix2,desipix3,desipix4,desipix12,desipix23,desipix34,desipix14
+            desipixlist = desipixc,desipix1,desipix2,desipix3,desipix4,desipix12,desipix23,desipix34,desipix14
             desipixlist = uniqlist(desipixlist)
             
-            matchlistout="""%s_match.csv""" % (data['FILENAME'][i])
+            matchlistout="""%s_match.csv""" % (row['FILENAME'])
             matchlistout = args.outdir+'/'+matchlistout.split('/')[-1]
-            objlistFile ="""%s_Obj.csv"""   % (data['FILENAME'][i])
+            objlistFile ="""%s_Obj.csv"""   % (row['FILENAME'])
             objlistFile = args.outdir+'/'+objlistFile.split('/')[-1]
-            stdlistFile ="""%s_std.csv"""   % (data['FILENAME'][i])        
+            stdlistFile ="""%s_std.csv"""   % (row['FILENAME'])        
             stdlistFile = args.outdir+'/'+stdlistFile.split('/')[-1]
 
             are_you_here(objlistFile)
@@ -319,11 +320,10 @@ def getallccdfromAPASS92MASS(args):
 
     # reorganize - list of pd frames to one pd frame
     chunk = pd.concat(good_data, ignore_index=True).sort(['RAJ2000_APASS'], ascending=True)
-    w1 = ( chunk['RAJ2000_2MASS'] > minra ) ; w2 = ( chunk['RAJ2000_2MASS'] < maxra )
-    w3 = ( chunk['DEJ2000_2MASS'] > mindec ); w4 = ( chunk['DEJ2000_2MASS'] < maxdec )
-    w5 = ( chunk[BANDname] >0 )
+    datastd = chunk.loc[(chunk['RAJ2000_2MASS'] > minra) & (chunk['RAJ2000_2MASS'] < maxra) &
+                        (chunk['DEJ2000_2MASS'] > mindec) & (chunk['DEJ2000_2MASS'] < maxdec) &
+                        (chunk[BANDname] > 0)]
     
-    datastd = chunk[ w1 &  w2 & w3 & w4 & w5 ]  # overlaping parts??
     datastd1= pd.DataFrame({'MATCHID':datastd['MATCHID'],
                             'RA':datastd['RAJ2000_2MASS'],
                             'DEC':datastd['DEJ2000_2MASS'],
@@ -335,20 +335,19 @@ def getallccdfromAPASS92MASS(args):
     datastd1.to_csv(outfile, columns=col, sep=',', index=False)
 
     # Create std files - compare standard to observations (?)
-    for i in range(data['RA_CENT'].size):
-        stdlistFile = """%s_std.csv"""   % (data['FILENAME'][i])   
+    for i, row in data.iterrows():
+        stdlistFile = """%s_std.csv"""   % row['FILENAME']
         stdlistFile = args.outdir+'/'+stdlistFile.split('/')[-1] 
-        minra, maxra, mindec, maxdec = get_corners(data, i , off=0.1)
-        w1 = ( datastd1['RA'] > minra ) ; w2 = ( datastd1['RA'] < maxra )
-        w3 = ( datastd1['DEC'] > mindec) ; w4 = ( datastd1['DEC'] < maxdec )
-        df = datastd1[ w1 &  w2 & w3 & w4 ].sort(['RA'], ascending=True)
+        minra, maxra, mindec, maxdec = get_corners(row, off=0.1)
+        df = datastd1.loc[(datastd1['RA'] > minra) & (datastd1['RA'] < maxra) &
+                          (datastd1['DEC'] > mindec) & (datastd1['DEC'] < maxdec)].sort(['RA'], ascending=True)
         df.to_csv(stdlistFile, columns=col, sep=',', index=False)
 
 ##################################
 #Matching FILES MAKE SURE the Cols are still in the same order
 def matchSortedStdwithObsCats(f1, f2, outfile,
                               stdracol=1, stddeccol=2, obsracol=1, obsdeccol=2, matchTolArcsec=1,verbose=1):
-    print "Looking for a match...", f2
+    
     # Open the standard star CSV file and read the first line as list...
     fs = pd.read_csv(f1, delimiter=',')
     
@@ -456,7 +455,6 @@ def sigmaClipZP(args):
     catlistFile, data1 = read_catlist(args)
     
     ZeroListFile = """Zero_D%08d_r%sp%02d.csv""" % (args.expnum, args.reqnum, args.attnum)
-    
     fout = open(ZeroListFile,'w')
     hdr = "FILENAME,Nall,Nclipped,ZP,ZPrms,magType\n"
     fout.write(hdr)
@@ -475,7 +473,7 @@ def sigmaClipZP(args):
     fout.close()        
 
     ZeroListFile="""Zero_D%08d_r%sp%02d.csv""" % (args.expnum,args.reqnum,args.attnum)
-    are_you_here(ZerolistFile)
+    are_you_here(ZeroListFile)
 
     MergedFile="""Merged_D%08d_r%sp%02d.csv""" % (args.expnum,args.reqnum,args.attnum)
     jointwocsv(catlistFile,ZeroListFile,MergedFile) 
@@ -568,21 +566,17 @@ def ZP_OUTLIERS(args):
     import matplotlib.pyplot as plt
     import matplotlib as mpl
 
-
     if args.verbose >0 : print args
-    #allZeroFile="""allZP_D%08d_r%sp%02d.csv""" % (args.expnum,args.reqnum,args.attnum)	
-    allZeroFile="""allZP_D%08d_r%sp%02d.csv""" % (args.expnum,args.reqnum,args.attnum)
-    #if not os.path.isfile(catlistFile):
-    #    print '%s does not seem to exist... exiting now...' % ZeroListFile
-    #    sys.exit(1)
-
-    MergedFile="""Merged_D%08d_r%sp%02d.csv""" % (args.expnum,args.reqnum,args.attnum)
+    
+    allZeroFile = """allZP_D%08d_r%sp%02d.csv""" % (args.expnum, args.reqnum, args.attnum)
+    
+    MergedFile="""Merged_D%08d_r%sp%02d.csv""" % (args.expnum, args.reqnum, args.attnum)
     are_you_here(MergedFile)
 
-    fout="""Merg_allZP_D%08d_r%sp%02d.csv""" % (args.expnum,args.reqnum,args.attnum)
+    fout = """Merg_allZP_D%08d_r%sp%02d.csv""" % (args.expnum, args.reqnum, args.attnum)
 
-    df1=pd.read_csv(MergedFile)
-    df2=np.genfromtxt(allZeroFile,dtype=None,delimiter=',',names=True)
+    df1 = pd.read_csv(MergedFile)
+    df2 = np.genfromtxt(allZeroFile,dtype=None,delimiter=',',names=True)
 
     w0= ( df1['Nclipped'] < 4 ) | ( df1['ZP'] < -100 ) | ( df1['ZPrms'] > 0.3 )
     df1['NewZP']=np.where(w0 , df2['sigclipZP'],df1['ZP'])
