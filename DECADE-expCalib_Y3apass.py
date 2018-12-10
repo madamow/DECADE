@@ -49,25 +49,25 @@ def main():
     if args.verbose > 0: print args
 
     # Create all *std files
- #   getallccdfromAPASS92MASS(args)
-    #exit()
+#    getallccdfromAPASS92MASS(args)
+#    exit()
     # -- ADDED NEW
-  #  doset(args)
-    #exit()
+#    doset(args)
+#    exit()
     # WHEN NEEDED
     # plot ra,dec of Sex-vs Y2Q1 for each CCD
     if args.verbose >0 :
         plotradec_sexvsY2Q1(args)
 
     # Estimate 3sigma Clipped Zeropoint for each CCD
-#    sigmaClipZP(args)
+    sigmaClipZP(args)
 #    exit()
 
-#    sigmaClipZPallCCDs(args)
+    sigmaClipZPallCCDs(args)
 #    exit()
 
     ZP_OUTLIERS(args)
-    exit()
+ #   exit()
 
     # --
     Onefile(args)
@@ -90,7 +90,7 @@ def read_catlist(args):
     # Open catalog created with make_red_catlist.py 
     catlistFile="""D%08d_r%sp%02d_red_catlist.csv""" % (args.expnum, str(args.reqnum), args.attnum)
 
-    # Check if file exists, exit if it does not                                                                                                                                                                
+    # Check if file exists, exit if it does not                                                                                                      
     are_you_here(catlistFile)
 
     # Read and return the catalog  
@@ -165,8 +165,6 @@ def Wget_data_home(args):
     if  glob.glob(myfile):
         #Print '%s does seem to exist... exiting now...' % catname
         print "relevant cat files already exist in the current directory... no need to wget..."
-        #sys.exit(1)
-        return 1
     else:
         print "relevant cat files are not in directory... wgetting them from archive..."
         sys.exit(1)
@@ -174,55 +172,44 @@ def Wget_data_home(args):
 ##################################
 # Quick Read SEX_table filemane_fullcat.fits then select subsame
 # and write it as filemane_fullcat.fits_Obj.csv
-def Read_Sexcatalogfitstocsv(args,fitsname,band):
+def Read_Sexcatalogfitstocsv(args, fitsname, band):
 
     import fitsio
-    import string
-    import math
     import csv
- 
-    catFilename=fitsname
-    outFile="""%s_Obj.csv""" % (catFilename)
-    outFile = args.outdir+'/'+outFile.split('/')[-1]
 
-    extension=2
+    catFilename = fitsname
+    outFile = """%s_Obj.csv""" % (catFilename)
+    outFile = args.outdir + '/' + outFile.split('/')[-1]
+
+    extension = 2
     hdr = ["OBJECT_NUMBER","RA","DEC","MAG","MAGERR","ZEROPOINT","MAGTYPE","BAND"]
 
     magType = args.magType.upper()
     magType = magType.strip()
-    fluxType = magType.replace('MAG','FLUX')
-    fluxerrType = magType.replace('MAG','FLUXERR') 
+    fluxType = magType.replace('MAG', 'FLUX')
+    fluxerrType = magType.replace('MAG', 'FLUXERR') 
 
-    SEXdata=[]
-    columns=['NUMBER','ALPHAWIN_J2000','DELTAWIN_J2000',fluxType,fluxerrType,'SPREAD_MODEL','SPREADERR_MODEL','FWHM_WORLD', 'CLASS_STAR', 'FLAGS']
+    columns = ['NUMBER','ALPHAWIN_J2000','DELTAWIN_J2000',fluxType,fluxerrType,'SPREAD_MODEL',
+               'SPREADERR_MODEL','FWHM_WORLD', 'CLASS_STAR', 'FLAGS']
 
     Fdata = fitsio.read(catFilename,  columns=columns, ext=extension)[:]
-    #w0=( Fdata['FLUX_PSF'] > 2000) _OLD  
-    w0=( Fdata['FLUX_PSF'] > 1000)  #NEW
-    w1=( Fdata['FLAGS'] <= 3)
-    #w2=( (Fdata['CLASS_STAR'] > 0.8 ) | (np.abs(Fdata['SPREAD_MODEL'] + 3.*Fdata['SPREADERR_MODEL'] <0.003 )))
-    # NEW May16,16
-    w2=( (Fdata['CLASS_STAR'] > 0.8 ) & (Fdata['SPREAD_MODEL']  <0.01 ) )
+    SEXdata = Fdata[np.where(( Fdata['FLUX_PSF'] > 1000.) & ( Fdata['FLAGS'] <= 3) & 
+                             (Fdata['CLASS_STAR'] > 0.8 ) & (Fdata['SPREAD_MODEL']  < 0.01)) ]
 
-    SEXdata = Fdata[w0 & w1 & w2]
     SEXdata = SEXdata[np.argsort(SEXdata['ALPHAWIN_J2000'])]
-    fwhm_arcsec=3600.*SEXdata['FWHM_WORLD']
-    mag= -2.5*np.log10(SEXdata[fluxType]) + args.sex_mag_zeropoint
-    magerr = (2.5/math.log(10.))*(SEXdata[fluxerrType]/SEXdata[fluxType])
-    zeropoint=args.sex_mag_zeropoint*(SEXdata[fluxType]/SEXdata[fluxType])
+    fwhm_arcsec = 3600. * SEXdata['FWHM_WORLD']
+    mag = -2.5 * np.log10(SEXdata[fluxType]) + args.sex_mag_zeropoint
+    magerr = (2.5 / np.log(10.)) * (SEXdata[fluxerrType] / SEXdata[fluxType])
+    zeropoint = args.sex_mag_zeropoint * (SEXdata[fluxType] / SEXdata[fluxType])
   
     with open(outFile,'w') as csvFile:
-            writer = csv.writer(csvFile,delimiter=',',  quotechar='|',
+            writer = csv.writer(csvFile, delimiter=',',  quotechar='|',
                                 lineterminator='\n', quoting=csv.QUOTE_MINIMAL)
 
             writer.writerow(hdr)
-            line=[]
-            for i in range(SEXdata.size):
-                line=SEXdata['NUMBER'][i],SEXdata['ALPHAWIN_J2000'][i], SEXdata['DELTAWIN_J2000'][i], mag[i], magerr[i], zeropoint[i], magType,band 
+            for i, row in enumerate(SEXdata):
+                line = row['NUMBER'], row['ALPHAWIN_J2000'], row['DELTAWIN_J2000'], mag[i], magerr[i], zeropoint[i], magType, band 
                 writer.writerow(line)
-
-    SEXdata=[]
-    Fdata=[]
 
 ##################################
 def radec2thetaphi(ra, dec):
@@ -231,9 +218,9 @@ def radec2thetaphi(ra, dec):
 
 ##################################
 #for DES--nside=128
-def getipix(nside,ra,dec):
+def getipix(nside, ra, dec):
     import healpy as hp
-    #nside=128
+
     theta, phi = radec2thetaphi(ra, dec)
     ipix = hp.pixelfunc.ang2pix(nside, theta, phi, nest=True)
     return ipix
@@ -245,17 +232,8 @@ def uniqlist(seq):
    [noDupes.append(i) for i in seq if not noDupes.count(i)]
    return noDupes
 
-
-
 ###################################
-#NEW  July 14,2016 
-#This is a FULL SKY 
-#/data/des20.b/data/sallam/pyPSM_Year2/TWOMASS/ALL-2MASS/2arcsec 
-#catalog now in stash cache in dcache
-# /pnfs/des//persistent/stash/ALLSKY_STARCAT/....
-#apass_TWO_MASS_*.csv  in totall 768 files  
-#filters are u_des,g_des,r_des,i_des,z_des,Y_des
-#################################
+
 def getallccdfromAPASS92MASS(args):
     import pandas as pd
     import string, glob
@@ -286,7 +264,7 @@ def getallccdfromAPASS92MASS(args):
     stdRA = np.std(data['RA_CENT'])
     
     # Round ra ??? why?
-    if ( stdRA >20 ) :
+    if stdRA > 20:
         data['RA_CENT'] = [roundra(x) for x in data['RA_CENT']]
         data['RAC1']    = [roundra(x) for x in data['RAC1']]
         data['RAC2']    = [roundra(x) for x in data['RAC2']]
@@ -376,7 +354,6 @@ def matchSortedStdwithObsCats(f1, f2, outfile,
 
     # Loop through file of observed data...
     while not done_obs:
-
         # Increment line count from observed data file...
         linecnt += 1
         if linecnt/1000.0 == int(linecnt/1000.0) and verbose > 1 :
@@ -398,7 +375,7 @@ def matchSortedStdwithObsCats(f1, f2, outfile,
             mtch = fs.iloc[np.where(delta2 < tol2)]
             
             if not mtch.empty:
-                for m in mtch.iterrows():
+                for i, m in mtch.iterrows():
                     m_id += 1
                     out_row = pd.DataFrame([[m_id] + mtch.values.tolist()[0] + obsline], columns=outputHeader)
                     out = out.append(out_row, ignore_index=True)
@@ -536,7 +513,7 @@ def sigmaClipZPallCCDs(args):
 
     #read all file and sort and save 
     df.to_csv(objfile, sep=',', index=False)
-
+    
     matchSortedStdwithObsCats(stdfile, objfile, outfile, 
                               stdracol=1, stddeccol=2,
                               obsracol=1, obsdeccol=2,
@@ -559,7 +536,7 @@ def sigmaClipZPallCCDs(args):
 # NEED to ADD LOF-see JoinZP3
 ###################################
 def ZP_OUTLIERS(args):
-    import os,sys,glob
+    import glob
     import math
     import sklearn
     from sklearn.neighbors import NearestNeighbors
@@ -576,13 +553,12 @@ def ZP_OUTLIERS(args):
     fout = """Merg_allZP_D%08d_r%sp%02d.csv""" % (args.expnum, args.reqnum, args.attnum)
 
     df1 = pd.read_csv(MergedFile)
-    df2 = np.genfromtxt(allZeroFile,dtype=None,delimiter=',',names=True)
-
-    w0= ( df1['Nclipped'] < 4 ) | ( df1['ZP'] < -100 ) | ( df1['ZPrms'] > 0.3 )
-    df1['NewZP']=np.where(w0 , df2['sigclipZP'],df1['ZP'])
+    df2 = np.genfromtxt(allZeroFile, dtype=None, delimiter=',', names=True)
+    
+    w0= ( df1['Nclipped'] < 4 ) | ( df1['ZP'] < -100. ) | ( df1['ZPrms'] > 0.3 )
+    df1['NewZP'] = np.where(w0 , df2['sigclipZP'],df1['ZP'])
     df1['NewZPrms']=np.where(w0, df2['stdsigclipzp'],df1['ZPrms'])
     df1['NewZPFlag1']=np.where(w0, np.int16(1),np.int16(0))
-                    
     df1['DiffZP']=df1['NewZP']- df1.NewZP.median()
 
     #Currently Diff ZP=0.3mag That is TOO MUCH    
@@ -619,49 +595,57 @@ def ZP_OUTLIERS(args):
 # apply_ZP with FLAGS
 # and write ONE file for all CCDs as
 #    filemane_fullcat.fits_Obj.csv
-#
-
 def apply_ZP_Sexcatalogfitstocsv(catFilename,EXPNUM,CCDNUM,zeropoint,zeropoint_rms,ZPFLAG,outdir,dir):
     import fitsio
     import string,math,csv
     
-    outFile="""%s_Obj.csv""" % (catFilename)   
+    outFile = """%s_Obj.csv""" % (catFilename)   
     outFile = outdir+'/'+outFile.split('/')[-1] 
-    extension=2
+    extension = 2
     
-    col=['EXPNUM','CCDNUM','NUMBER','ALPHAWIN_J2000','DELTAWIN_J2000','FLUX_AUTO','FLUXERR_AUTO','FLUX_PSF','FLUXERR_PSF','MAG_AUTO','MAGERR_AUTO','MAG_PSF','MAGERR_PSF','SPREAD_MODEL','SPREADERR_MODEL','FWHM_WORLD','FWHMPSF_IMAGE','FWHMPSF_WORLD','CLASS_STAR','FLAGS','IMAFLAGS_ISO','ZeroPoint','ZeroPoint_rms','ZeroPoint_FLAGS']
+    col = ['EXPNUM', 'CCDNUM','NUMBER', 'ALPHAWIN_J2000', 'DELTAWIN_J2000', 'FLUX_AUTO', 'FLUXERR_AUTO',
+           'FLUX_PSF', 'FLUXERR_PSF', 'MAG_AUTO','MAGERR_AUTO', 'MAG_PSF', 'MAGERR_PSF', 'SPREAD_MODEL',
+           'SPREADERR_MODEL', 'FWHM_WORLD', 'FWHMPSF_IMAGE', 'FWHMPSF_WORLD', 'CLASS_STAR', 'FLAGS',
+           'IMAFLAGS_ISO', 'ZeroPoint', 'ZeroPoint_rms', 'ZeroPoint_FLAGS']
 
-    hdr=['NUMBER','ALPHAWIN_J2000','DELTAWIN_J2000','FLUX_AUTO','FLUXERR_AUTO','FLUX_PSF','FLUXERR_PSF','MAG_AUTO','MAGERR_AUTO','MAG_PSF','MAGERR_PSF','SPREAD_MODEL','SPREADERR_MODEL','FWHM_WORLD','FWHMPSF_IMAGE','FWHMPSF_WORLD','CLASS_STAR','FLAGS','IMAFLAGS_ISO']
+    hdr = ['NUMBER', 'ALPHAWIN_J2000', 'DELTAWIN_J2000', 'FLUX_AUTO', 'FLUXERR_AUTO',
+           'FLUX_PSF', 'FLUXERR_PSF', 'MAG_AUTO', 'MAGERR_AUTO','MAG_PSF', 'MAGERR_PSF',
+           'SPREAD_MODEL','SPREADERR_MODEL','FWHM_WORLD','FWHMPSF_IMAGE','FWHMPSF_WORLD',
+           'CLASS_STAR','FLAGS','IMAFLAGS_ISO']
+    
     data = fitsio.read(catFilename,  columns=hdr, ext=extension)[:]
     data = data[np.argsort(data['ALPHAWIN_J2000'])]
 
-    w1=( data['FLUX_AUTO'] >0. )
-    data['MAG_AUTO'] = np.where(w1 , (-2.5*np.log10(data['FLUX_AUTO']) - zeropoint) ,np.int16(-9999))
+    w1 = ( data['FLUX_AUTO'] >0. )
+    data['MAG_AUTO'] = np.where(w1 , (-2.5*np.log10(data['FLUX_AUTO']) - zeropoint) , np.int16(-9999))
     data['MAGERR_AUTO'] = np.where(w1 ,(2.5/math.log(10.))*(data['FLUXERR_AUTO']/data['FLUX_AUTO']) ,np.int16(-9999))
-    w1=( data['FLUX_PSF'] >0. )
-    data['MAG_PSF']= np.where(w1 , (-2.5*np.log10(data['FLUX_PSF']) - zeropoint )   ,np.int16(-9999)) 
-    data['MAGERR_PSF'] =  np.where(w1 ,(2.5/math.log(10.))*(data['FLUXERR_PSF']/data['FLUX_PSF']) ,np.int16(-9999))
-
-    with open(outFile,'w') as csvFile:
-            writer = csv.writer(csvFile,delimiter=',',  quotechar='|',
+    
+    w1 = ( data['FLUX_PSF'] >0. )
+    data['MAG_PSF'] = np.where(w1, (-2.5*np.log10(data['FLUX_PSF']) - zeropoint )   ,np.int16(-9999)) 
+    data['MAGERR_PSF'] =  np.where(w1 ,(2.5/math.log(10.))*(data['FLUXERR_PSF']/data['FLUX_PSF']), np.int16(-9999))
+    
+    with open(outFile, 'w') as csvFile:
+            writer = csv.writer(csvFile, delimiter=',',  quotechar='|',
                                 lineterminator='\n', quoting=csv.QUOTE_MINIMAL)
 
             writer.writerow(col)
 
             line=[]
-            for i in range(data.size):
-                line=EXPNUM,CCDNUM,data['NUMBER'][i],data['ALPHAWIN_J2000'][i],data['DELTAWIN_J2000'][i],data['FLUX_AUTO'][i],data['FLUXERR_AUTO'][i],data['FLUX_PSF'][i],data['FLUXERR_PSF'][i],data['MAG_AUTO'][i],data['MAGERR_AUTO'][i],data['MAG_PSF'][i],data['MAGERR_PSF'][i],data['SPREAD_MODEL'][i],data['SPREADERR_MODEL'][i],data['FWHM_WORLD'][i],data['FWHMPSF_IMAGE'][i],data['FWHMPSF_WORLD'][i],data['CLASS_STAR'][i],data['FLAGS'][i],data['IMAFLAGS_ISO'][i],zeropoint,zeropoint_rms,ZPFLAG
+            for i, row in enumerate(data):
+                line = EXPNUM, CCDNUM, row['NUMBER'], row['ALPHAWIN_J2000'], row['DELTAWIN_J2000'], \
+                      row['FLUX_AUTO'], row['FLUXERR_AUTO'], row['FLUX_PSF'], row['FLUXERR_PSF'], \
+                      row['MAG_AUTO'], row['MAGERR_AUTO'], row['MAG_PSF'], row['MAGERR_PSF'], \
+                      row['SPREAD_MODEL'], row['SPREADERR_MODEL'], \
+                      row['FWHM_WORLD'], row['FWHMPSF_IMAGE'], row['FWHMPSF_WORLD'], row['CLASS_STAR'], \
+                      row['FLAGS'], row['IMAFLAGS_ISO'], zeropoint, zeropoint_rms, ZPFLAG
 
                 writer.writerow(line)
-
-    data=[]
 
 #############################################
 #To Do
 #Still needs new args for type of output csv/fits
 def Onefile(args):
-    import os,glob
-    import pandas as pd
+    import glob
     from astropy.io import fits
 
     if args.verbose >0 : print args
@@ -674,10 +658,10 @@ def Onefile(args):
 
     data = np.genfromtxt(catlistFile, dtype=None, delimiter=',', names=True)
         
-    for i in range(data['FILENAME'].size):
-        apply_ZP_Sexcatalogfitstocsv(data['FILENAME'][i],
-                                     data['EXPNUM'][i], data['CCDNUM'][i],
-                                     data['NewZP'][i], data['NewZPrms'][i], data['NewZPFlag'][i],
+    for row in data:
+        apply_ZP_Sexcatalogfitstocsv(row['FILENAME'],
+                                     row['EXPNUM'], row['CCDNUM'],
+                                     row['NewZP'], row['NewZPrms'], row['NewZPFlag'],
                                      args.outdir,args.dir)
         
     path = './'
@@ -688,7 +672,12 @@ def Onefile(args):
     big_frame['ID'] = list(range(len(big_frame['ALPHAWIN_J2000'].index)))
     big_frame['ID'] = 1+big_frame['ID']
     
-    Cols = ["ID","EXPNUM","CCDNUM","NUMBER","ALPHAWIN_J2000","DELTAWIN_J2000","FLUX_AUTO","FLUXERR_AUTO","FLUX_PSF","FLUXERR_PSF","MAG_AUTO","MAGERR_AUTO","MAG_PSF","MAGERR_PSF","SPREAD_MODEL","SPREADERR_MODEL","FWHM_WORLD","FWHMPSF_IMAGE","FWHMPSF_WORLD","CLASS_STAR","FLAGS","IMAFLAGS_ISO","ZeroPoint","ZeroPoint_rms","ZeroPoint_FLAGS"]
+    Cols = ["ID","EXPNUM","CCDNUM","NUMBER","ALPHAWIN_J2000","DELTAWIN_J2000",
+            "FLUX_AUTO","FLUXERR_AUTO","FLUX_PSF","FLUXERR_PSF",
+            "MAG_AUTO","MAGERR_AUTO","MAG_PSF","MAGERR_PSF",
+            "SPREAD_MODEL","SPREADERR_MODEL",
+            "FWHM_WORLD","FWHMPSF_IMAGE","FWHMPSF_WORLD",
+            "CLASS_STAR","FLAGS","IMAFLAGS_ISO","ZeroPoint","ZeroPoint_rms","ZeroPoint_FLAGS"]
 
     big_frame.to_csv(fout, sep=',', columns=Cols,index=False)
 
