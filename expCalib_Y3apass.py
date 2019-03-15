@@ -48,12 +48,12 @@ def main():
                     
     if args.verbose > 0: print args
 
-    # Create all *std files
-#    getallccdfromAPASS92MASS(args)
-#    exit()
+    # Create all files with standard stars in overlapping the observed field
+    getallccdfromAPASS92MASS(args)
+    # exit()
     # -- ADDED NEW
-#    doset(args)
-#    exit()
+    doset(args)
+    #exit()
     # WHEN NEEDED
     # plot ra,dec of Sex-vs Y2Q1 for each CCD
     if args.verbose >0 :
@@ -61,7 +61,7 @@ def main():
 
     # Estimate 3sigma Clipped Zeropoint for each CCD
     sigmaClipZP(args)
-#    exit()
+    # exit()
 
     sigmaClipZPallCCDs(args)
 #    exit()
@@ -116,6 +116,7 @@ def doset(args):
 
     for i, row in data.iterrows():
         if os.path.isfile(row['FILENAME']):
+            # Read fits and write each CCD to *Obj.csv file
             Read_Sexcatalogfitstocsv(args,row['FILENAME'],row['BAND'])
             
             minra, maxra, mindec, maxdec = get_corners(row, off=0.)
@@ -149,7 +150,6 @@ def doset(args):
                                       obsracol=1, obsdeccol=2,
                                       matchTolArcsec=1.0, verbose=2)
  
-      
 ##################################
 #get_data_home for NOW it is for all CCDs:
 #
@@ -193,8 +193,8 @@ def Read_Sexcatalogfitstocsv(args, fitsname, band):
                'SPREADERR_MODEL','FWHM_WORLD', 'CLASS_STAR', 'FLAGS']
 
     Fdata = fitsio.read(catFilename,  columns=columns, ext=extension)[:]
-    SEXdata = Fdata[np.where(( Fdata['FLUX_PSF'] > 1000.) & ( Fdata['FLAGS'] <= 3) & 
-                             (Fdata['CLASS_STAR'] > 0.8 ) & (Fdata['SPREAD_MODEL']  < 0.01)) ]
+    SEXdata = Fdata[np.where(( Fdata['FLUX_PSF'] > 1000.) & ( Fdata['FLAGS'] <= 3) &
+             (Fdata['CLASS_STAR'] > 0.8 ) & (Fdata['SPREAD_MODEL']  < 0.01)) ]
 
     SEXdata = SEXdata[np.argsort(SEXdata['ALPHAWIN_J2000'])]
     fwhm_arcsec = 3600. * SEXdata['FWHM_WORLD']
@@ -276,43 +276,46 @@ def getallccdfromAPASS92MASS(args):
     mindec = data[['DEC_CENT','DECC1', 'DECC2', 'DECC3', 'DECC4']].min().min() - 0.1
     maxra =  data[['RA_CENT', 'RAC1', 'RAC2', 'RAC3', 'RAC4']].max().max() + 0.1
     maxdec = data[['DEC_CENT','DECC1', 'DECC2', 'DECC3', 'DECC4']].max().max() + 0.1
-   
-    # Create string with output file name
-    outfile = """STD%s""" % catlistFile
     
     # Create empty list/tables that will be used to create output file
     good_data  = []
 
     BANDname = BAND+"_des"
-
+    
+    # Find and read catalog
     for i in  desipixlist:
         myfile="""/des002/devel/emorgan2/APASS_TWOMASS/apass_TWO_MASS_%d.csv""" %i
-
         are_you_here(myfile)
-
         df= pd.read_csv(myfile)
         good_data.append(df)
-
-    # Put some limits on data, 
-    # cut the frame definded with min/max Ra/De from catalog of standards
-
-    # reorganize - list of pd frames to one pd frame
-    chunk = pd.concat(good_data, ignore_index=True).sort(['RAJ2000_APASS'], ascending=True)
-    datastd = chunk.loc[(chunk['RAJ2000_2MASS'] > minra) & (chunk['RAJ2000_2MASS'] < maxra) &
-                        (chunk['DEJ2000_2MASS'] > mindec) & (chunk['DEJ2000_2MASS'] < maxdec) &
-                        (chunk[BANDname] > 0)]
     
+    
+    # reorganize - list of  dataframes to one dataframe
+    chunk = pd.concat(good_data, ignore_index=True).sort(['RAJ2000_APASS'], ascending=True)
+
+    # Trim the catalog file so it contains stars within observed field and with proper band
+    # and save it to STD file. This file contains all standard stars that are located within
+    # all 62 CCD +plus some extensions on edges.
+    datastd = chunk.loc[(chunk['RAJ2000_2MASS'] > minra) & 
+                        (chunk['RAJ2000_2MASS'] < maxra) & 
+                        (chunk['DEJ2000_2MASS'] > mindec) & 
+                        (chunk['DEJ2000_2MASS'] < maxdec) &
+                        (chunk[BANDname] > 0)]
+
+    # Rename and copy some columns into new dataframe
     datastd1= pd.DataFrame({'MATCHID':datastd['MATCHID'],
                             'RA':datastd['RAJ2000_2MASS'],
                             'DEC':datastd['DEJ2000_2MASS'],
                             'WAVG_MAG_PSF':datastd[BANDname]})
 
     col = ["MATCHID", "RA","DEC", "WAVG_MAG_PSF"]  # could be replaced by datastd1 keywords
-   
+
+    # Create string with output file name
+    outfile = """STD%s""" % catlistFile
     # Save to csv file
     datastd1.to_csv(outfile, columns=col, sep=',', index=False)
 
-    # Create std files - compare standard to observations (?)
+    # Create standard files trimmed for each single ccd matrix.
     for i, row in data.iterrows():
         stdlistFile = """%s_std.csv"""   % row['FILENAME']
         stdlistFile = args.outdir+'/'+stdlistFile.split('/')[-1] 
@@ -538,8 +541,8 @@ def sigmaClipZPallCCDs(args):
 def ZP_OUTLIERS(args):
     import glob
     import math
-    import sklearn
-    from sklearn.neighbors import NearestNeighbors
+    #import sklearn
+    #from sklearn.neighbors import NearestNeighbors
     import matplotlib.pyplot as plt
     import matplotlib as mpl
 
