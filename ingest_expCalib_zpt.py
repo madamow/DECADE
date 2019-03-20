@@ -36,13 +36,16 @@ def CSVtoDict(filename,verbose=0):
 
     Dict={}
     t0=time.time()
+
     if (os.path.isfile(filename)):
         if (verbose > 0):
             print("Reading CSV file: {:s} and rendering as a dict of dicts".format(filename))
         csvfile=open(filename,'r')
         csvreader=csv.DictReader(csvfile)
+ 
         for row in csvreader:
-            fname=row['FILENAME']
+            fname=row['FILENAME'].split("/")[-1]
+            row['FILENAME']=fname
             for d in row:
                 if (row[d] in ["","-9999.0"]):
 #                    print d, row[d]
@@ -55,7 +58,8 @@ def CSVtoDict(filename,verbose=0):
         print("Aborting!")
         exit(1)
     if (verbose > 0):
-        print("Read {:d} records.".format(len(Dict))) 
+        print("Read {:d} records.".format(len(Dict)))
+
 
     return Dict
 
@@ -69,7 +73,7 @@ def GetImgData(Dict,dbh,dbSchema,verbose=0):
 #
     CatList=[]
     for key in Dict:
-        CatList.append([key])
+        CatList.append([key.split("/")[-1]])
 
     # Make sure the GTT_FILENAME table is empty
     curDB=dbh.cursor()
@@ -87,7 +91,7 @@ def GetImgData(Dict,dbh,dbSchema,verbose=0):
         i.band as band,
         i.expnum as expnum,
         i.ccdnum as ccdnum
-    FROM {schema:s}image i, {schema:s}catalog c, GTT_FILENAME gtt
+    FROM image i, catalog c, GTT_FILENAME gtt
     WHERE c.filename=gtt.filename
         and i.pfw_attempt_id=c.pfw_attempt_id
         and i.filetype='red_immask'
@@ -148,8 +152,8 @@ def ReplaceImgCatData(Dict,ProcTag,dbh,dbSchema,verbose=0):
 #
     CatList=[]
     for key in Dict:
-        CatList.append([key])
-
+        CatList.append([key[10:]])
+    
     # Make sure the GTT_FILENAME table is empty
     curDB=dbh.cursor()
     curDB.execute('delete from GTT_FILENAME')
@@ -224,13 +228,11 @@ def ReplaceImgCatData(Dict,ProcTag,dbh,dbSchema,verbose=0):
 #################################
 def ingest_zeropoint(ZPT_Dict,DBtable,DBorder,DtoC,dbh,updateDB,verbose=0):
     """Ingest a set of zeropoints"""
-
     t0=time.time()
     InsertCnt=0
     print("Preparing lists of list to ingest many zeropoints")
     
-    print DBtable
-    exit()
+
 #
 #   Preliminary sanity check (Do I know which data comes from where)
 #
@@ -275,12 +277,13 @@ def ingest_zeropoint(ZPT_Dict,DBtable,DBorder,DtoC,dbh,updateDB,verbose=0):
     t1=time.time()
 
     print("Successfully Formed list for Ingestion (Nrows={:d}, Timing: {:.2f})".format(len(new_data),(t1-t0)))
-    print DBorder
-    print new_data[0]
+#   print DBorder
+#    print new_data[0]
 #    print new_data[1]
 #    print new_data[2]
 #    for row in new_data:
 #        print row
+
 
     if (updateDB):
         print("# Loading {:s} with {:d} entries".format(DBtable,len(new_data)))
@@ -318,7 +321,7 @@ def parse_argv(argv):
     parser.add_argument('-v', '--verbose', action='store', type=str, default=0, help='Verbosity (defualt:0; currently values up to 2)')
     args = vars(parser.parse_args(argv))   # convert dict
 #    args = parser.parse_args()
-    print args
+
     return args
 
 
