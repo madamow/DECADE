@@ -18,17 +18,9 @@ import glob
 import re
 import time
 import math
-#import pytz
-#import getpass
-#import socket
-#import urllib2
-#import subprocess
-#from dateutil.parser import parse
 
 verbose=0
 updateDB=False
-
-
 
 #################################
 def CSVtoDict(filename,verbose=0):
@@ -48,8 +40,6 @@ def CSVtoDict(filename,verbose=0):
             row['FILENAME']=fname
             for d in row:
                 if (row[d] in ["","-9999.0"]):
-#                    print d, row[d]
-#                    print row['FILENAME'],d,row[d]
                     row[d]=None
             Dict[fname]=row  
         csvfile.close()
@@ -114,24 +104,16 @@ def GetImgData(Dict,dbh,dbSchema,verbose=0):
         ImgName=rowd['imagefile']
 
         if (CatName in Dict):
-#            if ((rowd['ccdnum']==int(Dict[CatName]['CCDNUM']))and
-#                (rowd['expnum']==int(Dict[CatName]['EXPNUM']))and
-#                (rowd['pfw_attempt_id']==int(Dict[CatName]['PFW_ATTEMPT_ID']))):
             CatRow=Dict[CatName]
             if ((rowd['ccdnum']==int(CatRow['CCDNUM']))and
                 (rowd['expnum']==int(CatRow['EXPNUM']))):
-#and
-#                (rowd['pfw_attempt_id']==int(CatRow['PFW_ATTEMPT_ID']))):
+
                 Dict[CatName]['IMAGEFILE']=rowd['imagefile']
                 Dict[CatName]['BAND']=rowd['band']
             else:
                 print("Catalog mismatch to Image: expnum=({cexp:7s} vs {iexp:7d}), ccdnum=({cccd:2s} vs {iccd:02d}))".format(
                     cexp=Dict[CatName]['EXPNUM'],iexp=rowd['expnum'],
                     cccd=Dict[CatName]['CCDNUM'],iccd=rowd['ccdnum']))
-#                print("Catalog mismatch to Image: expnum=({cexp:7s} vs {iexp:7d}), ccdnum=({cccd:2s} vs {iccd:02d}), pfw_attemp_id=({c_id:s} vs {i_id:d})".format(
-#                    cexp=Dict[CatName]['EXPNUM'],iexp=rowd['expnum'],
-#                    cccd=Dict[CatName]['CCDNUM'],iccd=rowd['ccdnum'],
-#                    c_id=Dict[CatName]['PFW_ATTEMPT_ID'],i_id=rowd['pfw_attempt_id']))
         else:
             print('Warning: Catalog name not in Dict (something is really wrong!!!).  Catname={:s}'.format(CatName))
     t2=time.time()
@@ -232,10 +214,7 @@ def ingest_zeropoint(ZPT_Dict,DBtable,DBorder,DtoC,dbh,updateDB,verbose=0):
     InsertCnt=0
     print("Preparing lists of list to ingest many zeropoints")
     
-
-#
 #   Preliminary sanity check (Do I know which data comes from where)
-#
     CheckCheckIt=True
     for col in DBorder:
         if (col not in DtoC):
@@ -277,13 +256,6 @@ def ingest_zeropoint(ZPT_Dict,DBtable,DBorder,DtoC,dbh,updateDB,verbose=0):
     t1=time.time()
 
     print("Successfully Formed list for Ingestion (Nrows={:d}, Timing: {:.2f})".format(len(new_data),(t1-t0)))
-#   print DBorder
-#    print new_data[0]
-#    print new_data[1]
-#    print new_data[2]
-#    for row in new_data:
-#        print row
-
 
     if (updateDB):
         print("# Loading {:s} with {:d} entries".format(DBtable,len(new_data)))
@@ -320,7 +292,6 @@ def parse_argv(argv):
 
     parser.add_argument('-v', '--verbose', action='store', type=str, default=0, help='Verbosity (defualt:0; currently values up to 2)')
     args = vars(parser.parse_args(argv))   # convert dict
-#    args = parser.parse_args()
 
     return args
 
@@ -335,45 +306,27 @@ def main():
     else:
         verbose=0
 
-#    ExpTag=args['exptag']
-#    ProcTag=args['proctag']
     des_services=args['des_services']
     des_db_section=args['des_db_section']
     dbSchema="%s." % (args['Schema'])
     updateDB=args['updateDB']
 
     DBtable=args['DBtable']
-
-#    ZpInfo={}
-#    ZpInfo['table']=args['DBtable']
-#    ZpInfo['source']=args['source']
-#    ZpInfo['version']=args['version']
-#    ZpInfo['tag']=args['tag']
-
     
-#    print "Common time: ",args['common_time']
     if (args['common_time']):
         common_time=datetime.now()
     else:
         common_time=None
-#
-#
+
     dbh = desdbi.DesDbi(des_services, des_db_section)
     cur = dbh.cursor()
 
     ZPT_Dict=CSVtoDict(args['file'],verbose=verbose)
-#    print len(ZPT_Dict)
-#    for key in ZPT_Dict:
-#        akey=key
-#    print akey
-#    for key in ZPT_Dict[akey]:
-#        print key
-#    exit()
 
     if (args['proctag_replace'] is None):
-#
+
 #       Find associated Image to the original catalog files
-#
+
         ZPT_Dict=GetImgData(ZPT_Dict,dbh,dbSchema,verbose=verbose)    
     else:
 #
