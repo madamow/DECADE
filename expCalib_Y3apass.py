@@ -70,7 +70,7 @@ def main():
  #   exit()
 
     # --
-    Onefile(args)
+#    Onefile(args)
 
     # --
     # plot ra,dec of matched stars for ALL CCDs
@@ -292,7 +292,7 @@ def getallccdfromAPASS92MASS(args):
     
     # reorganize - list of  dataframes to one dataframe
     chunk = pd.concat(good_data, ignore_index=True).sort(['RAJ2000_APASS'], ascending=True)
-
+    
     # Trim the catalog file so it contains stars within observed field and with proper band
     # and save it to STD file. This file contains all standard stars that are located within
     # all 62 CCD +plus some extensions on edges.
@@ -386,8 +386,10 @@ def matchSortedStdwithObsCats(f1, f2, outfile,
     # Change dtype so output file looks nice
     out.MATCHID = out.MATCHID.astype(int)
     out.MATCHID_1 = out.MATCHID_1.astype(int)
-    out.OBJECT_NUMBER_2 = out.OBJECT_NUMBER_2.astype(int)
-    
+    try:
+        out.OBJECT_NUMBER_2 = out.OBJECT_NUMBER_2.astype(int)
+    except ValueError:
+        pass    
     # Drop matches to output file
     out.to_csv(outfile, index=False)
     
@@ -511,7 +513,7 @@ def sigmaClipZPallCCDs(args):
     stddf = pd.read_csv(stdfile).sort(['RA'], ascending=True)
     stddf.to_csv(stdfile, sep=',', index=False)
     path = './'
-    all_files = glob.glob(os.path.join(path, "*Obj.csv"))     
+    all_files = glob.glob("*%s*Obj.csv" % (args.expnum))     
     df = pd.concat((pd.read_csv(f) for f in all_files)).sort(['RA'], ascending=True)
 
     #read all file and sort and save 
