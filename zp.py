@@ -2,9 +2,9 @@ import numpy as np
 import pandas as pd
 from despydb import DesDbi
 import argparse
-from t1_make_red_catlist import MakeRCat
-from t1_expCalib_Y3apass import main as expcalib
-from t1_ingest_expCalib_zpt import main as ingest
+from make_red_catlist import MakeRCat
+from expCalib_Y3apass import main as expcalib
+from ingest_expCalib_zpt import main as ingest
 import glob
 import os
 
@@ -116,7 +116,7 @@ for no, row in todo.iterrows():
     expcalib(args)
         
     # Ingest to database
-    merged = "Merged_%s_r%sp%02d.csv" % (unit, args.reqnum, args.attnum)
+    merged = "Merged_%s_r%sp%02d.csv" % (row['unitname'], args.reqnum, args.attnum)
     args.file = merged
     ingest(args)
         
