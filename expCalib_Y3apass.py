@@ -24,27 +24,8 @@ import healpy as hp
 import pandas as pd
 ##################################
 
-def main():
+def main(args):
     print " Start with DECADE-expCalib.py \n"
-    """Create command line arguments"""
-    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument('--caldir', help='caldir is the calibration directory',
-                        default='/des002/devel/emorgan2/APASS_TWOMASS/', type=str)
-    parser.add_argument('--dir', help='dir is the production directory',
-                        default='/archive_data/desarchive/DEC/finalcut/Y5A1/HITS/', type=str)
-    parser.add_argument('--outdir', help='dir is the production directory', default='.', type=str)
-    parser.add_argument('--expnum', help='expnum is queried', default=288940, type=int)
-    parser.add_argument('--reqnum', help='reqnum is queried', default=3505, type=str)
-    parser.add_argument('--attnum', help='attnum is queried', default=1, type=int)
-    parser.add_argument('--magType', help='mag type to use (mag_psf, mag_auto, mag_aper_8, ...)', default='mag_psf')
-    parser.add_argument('--sex_mag_zeropoint',
-                        help='default sextractor zeropoint to use to convert fluxes to sextractor mags \
-                             (mag_sex = -2.5log10(flux) + sex_mag_zeropoint)',
-                        type=float, default=25.0)
-    parser.add_argument('--verbose', help='verbosity level of output to screen (0,1,2,...)', default=0, type=int)
-    parser.add_argument('--debug', help='debugging option', dest='debug', action='store_true', default=False)
-                        
-    args = parser.parse_args()
                     
     if args.verbose > 0: print args
 
@@ -513,7 +494,7 @@ def sigmaClipZPallCCDs(args):
     stddf = pd.read_csv(stdfile).sort(['RA'], ascending=True)
     stddf.to_csv(stdfile, sep=',', index=False)
     path = './'
-    all_files = glob.glob("*%s*Obj.csv" % (args.expnum))     
+    all_files = glob.glob("*%s*Obj.csv" % (args.expnum))
     df = pd.concat((pd.read_csv(f) for f in all_files)).sort(['RA'], ascending=True)
 
     #read all file and sort and save 
@@ -545,8 +526,8 @@ def ZP_OUTLIERS(args):
     import math
     #import sklearn
     #from sklearn.neighbors import NearestNeighbors
-    import matplotlib.pyplot as plt
-    import matplotlib as mpl
+    #import matplotlib.pyplot as plt
+    #import matplotlib as mpl
 
     if args.verbose >0 : print args
     
@@ -772,6 +753,26 @@ def returnFlag(x):
 ##################################
 
 if __name__ == "__main__":
-    main()
+    """Create command line arguments"""
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument('--caldir', help='caldir is the calibration directory',
+                        default='/des002/devel/emorgan2/APASS_TWOMASS/', type=str)
+    parser.add_argument('--dir', help='dir is the production directory',
+                        default='/archive_data/desarchive/DEC/finalcut/Y5A1/HITS/', type=str)
+    parser.add_argument('--outdir', help='dir is the production directory', default='.', type=str)
+    parser.add_argument('--expnum', help='expnum is queried', default=288940, type=int)
+    parser.add_argument('--reqnum', help='reqnum is queried', default=3505, type=str)
+    parser.add_argument('--attnum', help='attnum is queried', default=1, type=int)
+    parser.add_argument('--magType', help='mag type to use (mag_psf, mag_auto, mag_aper_8, ...)', default='mag_psf')
+    parser.add_argument('--sex_mag_zeropoint',
+                        help='default sextractor zeropoint to use to convert fluxes to sextractor mags \
+                             (mag_sex = -2.5log10(flux) + sex_mag_zeropoint)',
+                        type=float, default=25.0)
+    parser.add_argument('--verbose', help='verbosity level of output to screen (0,1,2,...)', default=0, type=int)
+    parser.add_argument('--debug', help='debugging option', dest='debug', action='store_true', default=False)
+
+    args = parser.parse_args()
+
+    main(args)
 
 ##################################

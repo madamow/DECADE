@@ -8,7 +8,7 @@
     whether it should be included in a processing tag.
 """
 
-import argparse
+
 import despydb.desdbi as desdbi
 from datetime import datetime, timedelta
 import csv
@@ -269,7 +269,7 @@ def ingest_zeropoint(ZPT_Dict,DBtable,DBorder,DtoC,dbh,updateDB,verbose=0):
     return ningest
 
 
-#################################
+##########################
 def parse_argv(argv):
     """ Return command line arguments as dict """
     parser = argparse.ArgumentParser(description='Examine a set of exposures to determine fitness for a processing campaign tag')
@@ -290,40 +290,37 @@ def parse_argv(argv):
     parser.add_argument('--proctag_replace', action='store', type=str, default=None, help='Replace image and catalog files from a different proctag (using expnum, ccdnum info')
     parser.add_argument('--partial_replace', action='store_true', default=False, help='Flag to allow partial replacement to occur')
 
-    parser.add_argument('-v', '--verbose', action='store', type=str, default=0, help='Verbosity (defualt:0; currently values up to 2)')
-    args = vars(parser.parse_args(argv))   # convert dict
-
+    parser.add_argument('-v', '--verbose', action='store', type=int, default=0, help='Verbosity (defualt:0; currently values up to 2)')
+    args = parser.parse_args()
     return args
 
 
 #################################
-def main():
+def main(args):
     """ Program entry point """
-    args = parse_argv(sys.argv[1:])
 
-    if args['verbose'] is not None:
-        verbose = int(args['verbose'])
-    else:
-        verbose=0
+    if args.verbose is None:
+        args.verbose=0
 
-    des_services=args['des_services']
-    des_db_section=args['des_db_section']
-    dbSchema="%s." % (args['Schema'])
-    updateDB=args['updateDB']
+    des_services=args.des_services
+    des_db_section=args.des_db_section
+    dbSchema="%s." % (args.Schema)
+    updateDB=args.updateDB
 
-    DBtable=args['DBtable']
+    DBtable=args.DBtable
     
-    if (args['common_time']):
+    if (args.common_time):
         common_time=datetime.now()
     else:
         common_time=None
 
     dbh = desdbi.DesDbi(des_services, des_db_section)
     cur = dbh.cursor()
-
-    ZPT_Dict=CSVtoDict(args['file'],verbose=verbose)
-
-    if (args['proctag_replace'] is None):
+    
+    print "Working on %s..." % args.file
+    ZPT_Dict=CSVtoDict(args.file, verbose=args.verbose)
+     
+    if (args.proctag_replace is None):
 
 #       Find associated Image to the original catalog files
 
@@ -359,8 +356,8 @@ def main():
 
     DBtoCSV_ColDict={
         'IMAGENAME':{'src':'CSV','col':'IMAGEFILE'},
-        'SOURCE':   {'src':'arg','val':args['source']},
-        'VERSION':  {'src':'arg','val':args['version']},
+        'SOURCE':   {'src':'arg','val':args.source},
+        'VERSION':  {'src':'arg','val':args.version},
         'CATALOGNAME':{'src':'CSV','col':'FILENAME'},
         'EXPNUM':   {'src':'CSV','col':'EXPNUM'},
         'CCDNUM':   {'src':'CSV','col':'CCDNUM'},
@@ -370,7 +367,7 @@ def main():
         'SIGMA_MAG_ZERO':{'src':'CSV','col':'NewZPrms'},
         'MAG_ONE':  {'src':'arg','val':None},
         'SIGMA_MAG_ONE':{'src':'arg','val':None},
-        'TAG':      {'src':'arg','val':args['tag']},
+        'TAG':      {'src':'arg','val':args.tag},
         'FLAG':     {'src':'cal'}
     }
 
@@ -406,4 +403,5 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    args = parse_argv()
+    main(args)
