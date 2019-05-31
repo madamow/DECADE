@@ -5,16 +5,12 @@ import fitsio
 import glob
 import sys
 
-
+# This version icludes changes that allow to import it as funciton as pass all arguments
 class MakeRCat():
     
-    def __init__(self ):
-        if len(sys.argv) != 3:
-          print "make_red_catlist.py indir outdir"
-          print "make_red_catlist.py /archive_data/desarchive/DEC/finalcut/Y5A1/HITS/3505/20140228/D00288940/p01/ /home/emorgan2/DECADE/expCalib/ )"
-          sys.exit(1)
-        indir = sys.argv[1]
-        outdir= sys.argv[2]  
+    def __init__(self, args ):
+        indir = args.filein
+        outdir= args.outdir  
         print 'Start with make_red_catlist.py \n'
         self.file_list = glob.glob(indir+'/red/immask/'+'*_immasked.fits*')
         self.sort_list = sorted(self.file_list)
@@ -63,7 +59,8 @@ class MakeRCat():
                 airmass = str(imhdr['AIRMASS'])
             except:
                 airmass = '1.3'
-                print "airmass is not set will put 1.3 \n"
+                sys.stdout.write("\r airmass is not set. Will put 1.3")
+                sys.stdout.flush()
             try:
                 exptime = string.split(str(imhdr['EXPTIME']),'.')[0]+'.'
             except:
@@ -85,7 +82,7 @@ class MakeRCat():
             self.outf.write(rec)
             fits1.close()
         self.outf.close()
-        print 'Finish with make_red_catlist.py \n'
+        print '\n Finish with make_red_catlist.py \n'
         
 if __name__ == "__main__":
     mrc = MakeRCat()
