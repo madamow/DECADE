@@ -22,6 +22,7 @@ import argparse
 import sys
 import healpy as hp
 import pandas as pd
+import re
 ##################################
 
 def main(args):
@@ -51,7 +52,7 @@ def main(args):
  #   exit()
 
     # --
-#    Onefile(args)
+    Onefile(args)
 
     # --
     # plot ra,dec of matched stars for ALL CCDs
@@ -63,7 +64,7 @@ def are_you_here(fname):
     # Check if file exists, if not - exit
     if not os.path.exists(fname):
         print '%s does not seem to exist... exiting now...' % fname
-        sys.exit(1)
+        #sys.exit(1)
     else:
         pass
 
@@ -84,6 +85,40 @@ def get_corners(dat, off=0.):
     maxdec = dat[['DEC_CENT', 'DECC1', 'DECC2', 'DECC3', 'DECC4']].max() + off
 
     return minra, maxra, mindec, maxdec
+
+def add_field(a, descr):
+    # from: 
+    # https://stackoverflow.com/questions/1201817/adding-a-field-to-a-structured-numpy-array
+    """Return a new array that is like "a", but has additional fields.
+
+    Arguments:
+      a     -- a structured numpy array
+      descr -- a numpy type description of the new fields
+
+    The contents of "a" are copied over to the appropriate fields in
+    the new array, whereas the new fields are uninitialized.  The
+    arguments are not modified.
+
+    >>> sa = numpy.array([(1, 'Foo'), (2, 'Bar')], \
+                         dtype=[('id', int), ('name', 'S3')])
+    >>> sa.dtype.descr == numpy.dtype([('id', int), ('name', 'S3')])
+    True
+    >>> sb = add_field(sa, [('score', float)])
+    >>> sb.dtype.descr == numpy.dtype([('id', int), ('name', 'S3'), \
+                                       ('score', float)])
+    True
+    >>> numpy.all(sa['id'] == sb['id'])
+    True
+    >>> numpy.all(sa['name'] == sb['name'])
+    True
+    """
+    if a.dtype.fields is None:
+        raise ValueError, "`A' must be a structured numpy array"
+    b = np.empty(a.shape, dtype=a.dtype.descr + descr)
+    for name in a.dtype.names:
+        b[name] = a[name]
+    return b
+
 
 ##################################
 # Get data from  PROD tables EXPOSURE IMAGE, WDF, and CATALOG,
@@ -167,6 +202,10 @@ def Read_Sexcatalogfitstocsv(args, fitsname, band):
 
     magType = args.magType.upper()
     magType = magType.strip()
+    if 'APER' in magType:
+         ap_no=int(magType.split("_")[-1])
+         magType = "_".join(magType.split("_")[:-1])
+      
     fluxType = magType.replace('MAG', 'FLUX')
     fluxerrType = magType.replace('MAG', 'FLUXERR') 
 
@@ -174,7 +213,22 @@ def Read_Sexcatalogfitstocsv(args, fitsname, band):
                'SPREADERR_MODEL','FWHM_WORLD', 'CLASS_STAR', 'FLAGS']
 
     Fdata = fitsio.read(catFilename,  columns=columns, ext=extension)[:]
-    SEXdata = Fdata[np.where(( Fdata['FLUX_PSF'] > 1000.) & ( Fdata['FLAGS'] <= 3) &
+    
+    #Here is a part of the code to hande vectors in case od MAG_APER
+    if 'APER' in magType:
+        field_name = '%s_%s' % (fluxType, ap_no)
+        field_err_name = '%s_%s' % (fluxerrType, ap_no)
+     
+        Fdata = add_field(Fdata, [(field_name,float)])
+        Fdata[field_name] = Fdata[fluxType][:,ap_no-1]
+        
+        Fdata = add_field(Fdata, [(field_err_name,float)])
+        Fdata[field_name] = Fdata[fluxerrType][:,ap_no-1]
+        
+        fluxType = field_name
+        fluxerrType = field_err_name
+        
+    SEXdata = Fdata[np.where(( Fdata[fluxType] > 1000.) & ( Fdata['FLAGS'] <= 3) &
              (Fdata['CLASS_STAR'] > 0.8 ) & (Fdata['SPREAD_MODEL']  < 0.01)) ]
 
     SEXdata = SEXdata[np.argsort(SEXdata['ALPHAWIN_J2000'])]
@@ -189,7 +243,7 @@ def Read_Sexcatalogfitstocsv(args, fitsname, band):
 
             writer.writerow(hdr)
             for i, row in enumerate(SEXdata):
-                line = row['NUMBER'], row['ALPHAWIN_J2000'], row['DELTAWIN_J2000'], mag[i], magerr[i], zeropoint[i], magType, band 
+                line = row['NUMBER'], row['ALPHAWIN_J2000'], row['DELTAWIN_J2000'], mag[i], magerr[i], zeropoint[i], args.magType, band 
                 writer.writerow(line)
 
 ##################################
@@ -651,7 +705,8 @@ def Onefile(args):
                                      args.outdir,args.dir)
         
     path = './'
-    all_files = glob.glob(os.path.join(path, "*Obj.csv"))     
+    #all_files = glob.glob(os.path.join(path, "*Obj.csv"))     
+    all_files = glob.glob("*%s*Obj.csv" % (args.expnum))
 
     big_frame = pd.concat((pd.read_csv(f) for f in all_files)).sort(['ALPHAWIN_J2000'], ascending=True)
 
