@@ -336,3 +336,23 @@ def plotradec_ZP(args):
     plt.savefig(pnglistout5, format="png")
     plt.clf()
     #
+
+
+##################################
+# get_data_home for NOW it is for all CCDs:
+#
+def Wget_data_home(args):
+    import csv
+    import glob
+    import sys
+
+    catname = """D%08d_%s_%s_r%sp%02d_fullcat.fits""" % (args.expnum, "%", "%", args.reqnum, args.attnum)
+    myfile = """D%08d_*_r%sp%02d_fullcat.fits""" % (args.expnum, args.reqnum, args.attnum)
+
+    # Check first if file exists...
+    if glob.glob(myfile):
+        # Print '%s does seem to exist... exiting now...' % catname
+        print "relevant cat files already exist in the current directory... no need to wget..."
+    else:
+        print "relevant cat files are not in directory... wgetting them from archive..."
+        sys.exit(1)
