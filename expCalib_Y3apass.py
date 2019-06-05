@@ -31,7 +31,7 @@ def main(args):
     if args.verbose > 0: print args
 
     # Create all files with standard stars in overlapping the observed field
-    getallccdfromAPASS92MASS(args)
+    #getallccdfromAPASS92MASS(args)
     # exit()
     # -- ADDED NEW
     doset(args)
@@ -42,17 +42,17 @@ def main(args):
         plotradec_sexvsY2Q1(args)
 
     # Estimate 3sigma Clipped Zeropoint for each CCD
-    sigmaClipZP(args)
+    #sigmaClipZP(args)
     # exit()
 
-    sigmaClipZPallCCDs(args)
+    #sigmaClipZPallCCDs(args)
 #    exit()
 
-    ZP_OUTLIERS(args)
+    #ZP_OUTLIERS(args)
  #   exit()
 
     # --
-#    Onefile(args)
+    Onefile(args)
 
     # --
     # plot ra,dec of matched stars for ALL CCDs
@@ -198,8 +198,7 @@ def Read_Sexcatalogfitstocsv(args, fitsname, band):
     outFile = args.outdir + '/' + outFile.split('/')[-1]
 
     extension = 2
-    hdr = ["OBJECT_NUMBER","RA","DEC","MAG","MAGERR","ZEROPOINT","MAGTYPE",
-           "MAG_APER_%s" % args.aper_no,"MAGERR_APER_%s" % args.aper_no, "BAND"]
+    hdr = ["OBJECT_NUMBER","RA","DEC","MAG","MAGERR","ZEROPOINT","MAGTYPE", "BAND"]
       
     fluxType = args.magType.replace('MAG', 'FLUX')
     fluxerrType = args.magType.replace('MAG', 'FLUXERR') 
@@ -209,16 +208,6 @@ def Read_Sexcatalogfitstocsv(args, fitsname, band):
 
     Fdata = fitsio.read(catFilename,  columns=columns, ext=extension)[:]
     
-    #Here is a part of the code to handle vectors for MAG_APER
-    
-    aper = 'FLUX_APER_%s' % args.aper_no 
-    Fdata = add_field(Fdata, [(aper, float)])
-    Fdata[aper] = Fdata['FLUX_APER'][:,args.aper_no-1]
-    
-    apererr = 'FLUXERR_APER_%s' % args.aper_no 
-    Fdata = add_field(Fdata, [(apererr, float)])
-    Fdata[apererr] = Fdata['FLUXERR_APER'][:,args.aper_no-1]
-        
         
     SEXdata = Fdata[np.where(( Fdata[fluxType] > 1000.) & ( Fdata['FLAGS'] <= 3) &
              (Fdata['CLASS_STAR'] > 0.8 ) & (Fdata['SPREAD_MODEL']  < 0.01)) ]
@@ -228,9 +217,6 @@ def Read_Sexcatalogfitstocsv(args, fitsname, band):
     mag = -2.5 * np.log10(SEXdata[fluxType]) + args.sex_mag_zeropoint
     magerr = (2.5 / np.log(10.)) * (SEXdata[fluxerrType] / SEXdata[fluxType])
     zeropoint = args.sex_mag_zeropoint * (SEXdata[fluxType] / SEXdata[fluxType])
-    
-    magaper = -2.5 * np.log10(SEXdata[aper]) + args.sex_mag_zeropoint
-    magerr_aper = (2.5 / np.log(10.)) * (SEXdata[apererr] / SEXdata[aper])    
 
     with open(outFile,'w') as csvFile:
             writer = csv.writer(csvFile, delimiter=',',  quotechar='|',
@@ -238,7 +224,7 @@ def Read_Sexcatalogfitstocsv(args, fitsname, band):
 
             writer.writerow(hdr)
             for i, row in enumerate(SEXdata):
-                line = row['NUMBER'], row['ALPHAWIN_J2000'], row['DELTAWIN_J2000'], mag[i], magerr[i], zeropoint[i], args.magType, magaper[i], magerr_aper[i], band 
+                line = row['NUMBER'], row['ALPHAWIN_J2000'], row['DELTAWIN_J2000'], mag[i], magerr[i], zeropoint[i], args.magType, band 
                 writer.writerow(line)
 
 ##################################
@@ -638,19 +624,26 @@ def apply_ZP_Sexcatalogfitstocsv(catFilename,EXPNUM,CCDNUM,zeropoint,zeropoint_r
     outFile = outdir+'/'+outFile.split('/')[-1] 
     extension = 2
     
-    col = ['EXPNUM', 'CCDNUM','NUMBER', 'ALPHAWIN_J2000', 'DELTAWIN_J2000', 'FLUX_AUTO', 'FLUXERR_AUTO',
-           'FLUX_PSF', 'FLUXERR_PSF', 'MAG_AUTO','MAGERR_AUTO', 'MAG_PSF', 'MAGERR_PSF', 'SPREAD_MODEL',
-           'SPREADERR_MODEL', 'FWHM_WORLD', 'FWHMPSF_IMAGE', 'FWHMPSF_WORLD', 'CLASS_STAR', 'FLAGS',
-           'IMAFLAGS_ISO', 'ZeroPoint', 'ZeroPoint_rms', 'ZeroPoint_FLAGS']
+    col = ['EXPNUM', 'CCDNUM','NUMBER', 'ALPHAWIN_J2000', 'DELTAWIN_J2000', 
+           'FLUX_AUTO', 'FLUXERR_AUTO',
+           'FLUX_PSF', 'FLUXERR_PSF',
+           'FLUX_APER_%s' % args.aper_no, 'FLUXERR_APER_%s' % args.aper_no, 
+           'MAG_AUTO','MAGERR_AUTO', 
+           'MAG_PSF', 'MAGERR_PSF', 
+           'MAG_APER_%s' % args.aper_no, 'MAGERR_APER_%s' % args.aper_no,
+           'SPREAD_MODEL','SPREADERR_MODEL', 
+           'FWHM_WORLD', 'FWHMPSF_IMAGE', 'FWHMPSF_WORLD', 
+           'CLASS_STAR', 'FLAGS', 'IMAFLAGS_ISO', 
+           'ZeroPoint', 'ZeroPoint_rms', 'ZeroPoint_FLAGS']
 
     hdr = ['NUMBER', 'ALPHAWIN_J2000', 'DELTAWIN_J2000', 'FLUX_AUTO', 'FLUXERR_AUTO',
            'FLUX_PSF', 'FLUXERR_PSF', 'MAG_AUTO', 'MAGERR_AUTO','MAG_PSF', 'MAGERR_PSF',
+           'FLUX_APER','FLUXERR_APER','MAG_APER','MAGERR_APER',
            'SPREAD_MODEL','SPREADERR_MODEL','FWHM_WORLD','FWHMPSF_IMAGE','FWHMPSF_WORLD',
            'CLASS_STAR','FLAGS','IMAFLAGS_ISO']
     
     data = fitsio.read(catFilename,  columns=hdr, ext=extension)[:]
     data = data[np.argsort(data['ALPHAWIN_J2000'])]
-
     w1 = ( data['FLUX_AUTO'] >0. )
     data['MAG_AUTO'] = np.where(w1 , (-2.5*np.log10(data['FLUX_AUTO']) - zeropoint) , np.int16(-9999))
     data['MAGERR_AUTO'] = np.where(w1 ,(2.5/math.log(10.))*(data['FLUXERR_AUTO']/data['FLUX_AUTO']) ,np.int16(-9999))
@@ -658,6 +651,18 @@ def apply_ZP_Sexcatalogfitstocsv(catFilename,EXPNUM,CCDNUM,zeropoint,zeropoint_r
     w1 = ( data['FLUX_PSF'] >0. )
     data['MAG_PSF'] = np.where(w1, (-2.5*np.log10(data['FLUX_PSF']) - zeropoint )   ,np.int16(-9999)) 
     data['MAGERR_PSF'] =  np.where(w1 ,(2.5/math.log(10.))*(data['FLUXERR_PSF']/data['FLUX_PSF']), np.int16(-9999))
+    
+    # Deal with aperture magnitudes
+    for item in ['FLUX_APER', 'FLUXERR_APER', 'MAG_APER','MAGERR_APER']:
+        aper = '%s_%s' % (item, args.aper_no)
+        data = add_field(data, [(aper, float)])
+        data[aper] = data[item][:,args.aper_no-1]
+    
+    ap = 'FLUX_APER_%s' % args.aper_no
+    aperr = 'FLUXERR_APER_%s' % args.aper_no
+    w1 = ( data[ap] >0. )
+    data['MAG_APER_%s' %  args.aper_no] = np.where(w1, (-2.5*np.log10(data[ap]) - zeropoint )   ,np.int16(-9999))
+    data['MAGERR_APER_%s' % args.aper_no] =  np.where(w1 ,(2.5/math.log(10.))*(data[aperr]/data[ap]), np.int16(-9999))
     
     with open(outFile, 'w') as csvFile:
             writer = csv.writer(csvFile, delimiter=',',  quotechar='|',
@@ -668,8 +673,12 @@ def apply_ZP_Sexcatalogfitstocsv(catFilename,EXPNUM,CCDNUM,zeropoint,zeropoint_r
             line=[]
             for i, row in enumerate(data):
                 line = EXPNUM, CCDNUM, row['NUMBER'], row['ALPHAWIN_J2000'], row['DELTAWIN_J2000'], \
-                      row['FLUX_AUTO'], row['FLUXERR_AUTO'], row['FLUX_PSF'], row['FLUXERR_PSF'], \
-                      row['MAG_AUTO'], row['MAGERR_AUTO'], row['MAG_PSF'], row['MAGERR_PSF'], \
+                      row['FLUX_AUTO'], row['FLUXERR_AUTO'], \
+                      row['FLUX_PSF'], row['FLUXERR_PSF'], \
+                      row['FLUX_APER_%s' % args.aper_no], row['FLUXERR_APER_%s' % args.aper_no], \
+                      row['MAG_AUTO'], row['MAGERR_AUTO'], \
+                      row['MAG_PSF'], row['MAGERR_PSF'], \
+                      row['MAG_APER_%s' % args.aper_no], row['MAGERR_APER_%s' % args.aper_no], \
                       row['SPREAD_MODEL'], row['SPREADERR_MODEL'], \
                       row['FWHM_WORLD'], row['FWHMPSF_IMAGE'], row['FWHMPSF_WORLD'], row['CLASS_STAR'], \
                       row['FLAGS'], row['IMAFLAGS_ISO'], zeropoint, zeropoint_rms, ZPFLAG
@@ -700,9 +709,7 @@ def Onefile(args):
                                      args.outdir,args.dir)
         
     path = './'
-    #all_files = glob.glob(os.path.join(path, "*Obj.csv"))     
     all_files = glob.glob("*%s*Obj.csv" % (args.expnum))
-
     big_frame = pd.concat((pd.read_csv(f) for f in all_files)).sort(['ALPHAWIN_J2000'], ascending=True)
 
     big_frame['ID'] = list(range(len(big_frame['ALPHAWIN_J2000'].index)))
@@ -710,7 +717,9 @@ def Onefile(args):
     
     Cols = ["ID","EXPNUM","CCDNUM","NUMBER","ALPHAWIN_J2000","DELTAWIN_J2000",
             "FLUX_AUTO","FLUXERR_AUTO","FLUX_PSF","FLUXERR_PSF",
+            "FLUX_APER_%s" % args.aper_no, "FLUXERR_APER_%s" % args.aper_no,
             "MAG_AUTO","MAGERR_AUTO","MAG_PSF","MAGERR_PSF",
+            "MAG_APER_%s" % args.aper_no, "MAGERR_APER_%s" % args.aper_no,
             "SPREAD_MODEL","SPREADERR_MODEL",
             "FWHM_WORLD","FWHMPSF_IMAGE","FWHMPSF_WORLD",
             "CLASS_STAR","FLAGS","IMAFLAGS_ISO","ZeroPoint","ZeroPoint_rms","ZeroPoint_FLAGS"]
