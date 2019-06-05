@@ -52,7 +52,7 @@ def main(args):
  #   exit()
 
     # --
-    Onefile(args)
+#    Onefile(args)
 
     # --
     # plot ra,dec of matched stars for ALL CCDs
@@ -198,35 +198,27 @@ def Read_Sexcatalogfitstocsv(args, fitsname, band):
     outFile = args.outdir + '/' + outFile.split('/')[-1]
 
     extension = 2
-    hdr = ["OBJECT_NUMBER","RA","DEC","MAG","MAGERR","ZEROPOINT","MAGTYPE","BAND"]
-
-    magType = args.magType.upper()
-    magType = magType.strip()
-    if 'APER' in magType:
-         ap_no=int(magType.split("_")[-1])
-         magType = "_".join(magType.split("_")[:-1])
+    hdr = ["OBJECT_NUMBER","RA","DEC","MAG","MAGERR","ZEROPOINT","MAGTYPE",
+           "MAG_APER_%s" % args.aper_no,"MAGERR_APER_%s" % args.aper_no, "BAND"]
       
-    fluxType = magType.replace('MAG', 'FLUX')
-    fluxerrType = magType.replace('MAG', 'FLUXERR') 
+    fluxType = args.magType.replace('MAG', 'FLUX')
+    fluxerrType = args.magType.replace('MAG', 'FLUXERR') 
 
-    columns = ['NUMBER','ALPHAWIN_J2000','DELTAWIN_J2000',fluxType,fluxerrType,'SPREAD_MODEL',
-               'SPREADERR_MODEL','FWHM_WORLD', 'CLASS_STAR', 'FLAGS']
+    columns = ['NUMBER','ALPHAWIN_J2000','DELTAWIN_J2000',fluxType,fluxerrType,'FLUX_APER', 'FLUXERR_APER',
+               'SPREAD_MODEL','SPREADERR_MODEL','FWHM_WORLD', 'CLASS_STAR', 'FLAGS']
 
     Fdata = fitsio.read(catFilename,  columns=columns, ext=extension)[:]
     
-    #Here is a part of the code to hande vectors in case od MAG_APER
-    if 'APER' in magType:
-        field_name = '%s_%s' % (fluxType, ap_no)
-        field_err_name = '%s_%s' % (fluxerrType, ap_no)
-     
-        Fdata = add_field(Fdata, [(field_name,float)])
-        Fdata[field_name] = Fdata[fluxType][:,ap_no-1]
+    #Here is a part of the code to handle vectors for MAG_APER
+    
+    aper = 'FLUX_APER_%s' % args.aper_no 
+    Fdata = add_field(Fdata, [(aper, float)])
+    Fdata[aper] = Fdata['FLUX_APER'][:,args.aper_no-1]
+    
+    apererr = 'FLUXERR_APER_%s' % args.aper_no 
+    Fdata = add_field(Fdata, [(apererr, float)])
+    Fdata[apererr] = Fdata['FLUXERR_APER'][:,args.aper_no-1]
         
-        Fdata = add_field(Fdata, [(field_err_name,float)])
-        Fdata[field_name] = Fdata[fluxerrType][:,ap_no-1]
-        
-        fluxType = field_name
-        fluxerrType = field_err_name
         
     SEXdata = Fdata[np.where(( Fdata[fluxType] > 1000.) & ( Fdata['FLAGS'] <= 3) &
              (Fdata['CLASS_STAR'] > 0.8 ) & (Fdata['SPREAD_MODEL']  < 0.01)) ]
@@ -236,14 +228,17 @@ def Read_Sexcatalogfitstocsv(args, fitsname, band):
     mag = -2.5 * np.log10(SEXdata[fluxType]) + args.sex_mag_zeropoint
     magerr = (2.5 / np.log(10.)) * (SEXdata[fluxerrType] / SEXdata[fluxType])
     zeropoint = args.sex_mag_zeropoint * (SEXdata[fluxType] / SEXdata[fluxType])
-  
+    
+    magaper = -2.5 * np.log10(SEXdata[aper]) + args.sex_mag_zeropoint
+    magerr_aper = (2.5 / np.log(10.)) * (SEXdata[apererr] / SEXdata[aper])    
+
     with open(outFile,'w') as csvFile:
             writer = csv.writer(csvFile, delimiter=',',  quotechar='|',
                                 lineterminator='\n', quoting=csv.QUOTE_MINIMAL)
 
             writer.writerow(hdr)
             for i, row in enumerate(SEXdata):
-                line = row['NUMBER'], row['ALPHAWIN_J2000'], row['DELTAWIN_J2000'], mag[i], magerr[i], zeropoint[i], args.magType, band 
+                line = row['NUMBER'], row['ALPHAWIN_J2000'], row['DELTAWIN_J2000'], mag[i], magerr[i], zeropoint[i], args.magType, magaper[i], magerr_aper[i], band 
                 writer.writerow(line)
 
 ##################################
@@ -825,9 +820,11 @@ if __name__ == "__main__":
                         type=float, default=25.0)
     parser.add_argument('--verbose', help='verbosity level of output to screen (0,1,2,...)', default=0, type=int)
     parser.add_argument('--debug', help='debugging option', dest='debug', action='store_true', default=False)
-
+    parser.add_argument('--aper_no', help='grab one of the aperture magnitudes', default=5, type=int)
     args = parser.parse_args()
-
+    
+    args.magType = args.magType.strip().upper()
+ 
     main(args)
 
 ##################################
