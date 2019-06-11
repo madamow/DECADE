@@ -23,6 +23,7 @@ import sys
 import healpy as hp
 import pandas as pd
 import re
+from scipy.spatial import cKDTree
 ##################################
 
 def main(args):
@@ -31,28 +32,25 @@ def main(args):
     if args.verbose > 0: print args
 
     # Create all files with standard stars in overlapping the observed field
-    #getallccdfromAPASS92MASS(args)
-    # exit()
+    getallccdfromAPASS92MASS(args)
     # -- ADDED NEW
     doset(args)
-    #exit()
+
     # WHEN NEEDED
     # plot ra,dec of Sex-vs Y2Q1 for each CCD
     if args.verbose >0 :
         plotradec_sexvsY2Q1(args)
 
     # Estimate 3sigma Clipped Zeropoint for each CCD
-    #sigmaClipZP(args)
-    # exit()
+    sigmaClipZP(args)
 
-    #sigmaClipZPallCCDs(args)
-#    exit()
+    sigmaClipZPallCCDs(args)
 
-    #ZP_OUTLIERS(args)
+    ZP_OUTLIERS(args)
  #   exit()
 
     # --
-    Onefile(args)
+    #Onefile(args)
 
     # --
     # plot ra,dec of matched stars for ALL CCDs
@@ -120,6 +118,8 @@ def add_field(a, descr):
     return b
 
 
+
+
 ##################################
 # Get data from  PROD tables EXPOSURE IMAGE, WDF, and CATALOG,
 # then Convert the Fits table to csv and save it
@@ -161,10 +161,8 @@ def doset(args):
             are_you_here(objlistFile)
             are_you_here(stdlistFile)
 
-            matchSortedStdwithObsCats(stdlistFile, objlistFile, matchlistout,
-                                      stdracol=1, stddeccol=2,
-                                      obsracol=1, obsdeccol=2,
-                                      matchTolArcsec=1.0, verbose=2)
+            matchSortedStdwithObsCats_tree(stdlistFile, objlistFile, matchlistout,
+                                      matchTolArcsec=1.0)
  
 ##################################
 #get_data_home for NOW it is for all CCDs:
@@ -342,76 +340,74 @@ def getallccdfromAPASS92MASS(args):
 
 ##################################
 #Matching FILES MAKE SURE the Cols are still in the same order
-def matchSortedStdwithObsCats(f1, f2, outfile,
-                              stdracol=1, stddeccol=2, obsracol=1, obsdeccol=2, matchTolArcsec=1,verbose=1):
-    
+
+def find_neighbour_with_tree(t1, t2, tol):
+    tree_green = cKDTree(t1)
+    tree_blue = cKDTree(t2)
+    result = tree_green.query_ball_tree(tree_blue, tol)
+
+    final = [
+        (i, o[0]) for i, o in enumerate(result) if o
+    ]
+
+    return final
+
+
+def get_comp_with_tree(std, obj, out, tol):
+
+    #Get two numpy tables with coordinates
+
+    a1 = np.column_stack((std['RA'],std['DEC']))
+    a2 = np.column_stack((obj['RA'], obj['DEC']))
+
+    pairs_ind = find_neighbour_with_tree(a2, a1, tol)
+
+    for j,i in pairs_ind:
+        temp = pd.Series()
+        temp = temp.append(std.ix[[i]].squeeze())
+        temp = temp.append(obj.ix[[j]].squeeze())
+        temp = pd.DataFrame([temp.values], columns=out.columns)
+
+        out =out.append(temp)
+    out = out.reset_index(drop=True)
+
+    cosd = np.cos(np.radians(np.array(out['DEC_2'])))
+    radiff = out['RA_2'].subtract(out['RA_1'])
+    dediff = out['DEC_2'].subtract(out['DEC_1'])
+
+    delta2 = np.array(radiff * radiff * cosd * cosd + dediff * dediff)
+
+    out = out.iloc[np.where(delta2 < tol*tol)]
+
+    out.index += 1
+    out.index.names = ['MATCHID']
+    return out
+
+def matchSortedStdwithObsCats_tree(f1, f2, outfile, matchTolArcsec=1.):
     # Open the standard star CSV file and read the first line as list...
-    fs = pd.read_csv(f1, delimiter=',')
-    
+    fs = pd.read_csv(f1)
+
     # Open CSV file of observed data and read it line by line...
-    fd2 = open(f2)
-    h2 = fd2.readline().strip().split(',')  # read header
+    fd2 = pd.read_csv(f2)
+
 
     # Create an empty data frame that will be saved later as CSV file...
     #  Note that the column names from the standard star file
     #  now have a suffix of "_1", and that column names from
     #  the observed star file now have a suffix of "_2".
-    outputHeader = ['MATCHID']
-    for colhead in list(fs):
+    outputHeader = []
+    for colhead in fs.columns:
         outputHeader.append(colhead.upper() + '_1')
-    for colhead in h2:
+    for colhead in fd2.columns:
         outputHeader.append(colhead.upper() + '_2')
-    out = pd.DataFrame(index=[], columns=outputHeader)
-    
+    match = pd.DataFrame(index=[], columns=outputHeader)
+
     # Initialize some variables
-    done_obs = False
     tol = matchTolArcsec / 3600.0  # sky angular separation tolerance (in degrees)
-    tol2 = tol*tol  # square for tol
 
-    linecnt = 0  # line count for Obj file
-    m_id = 0  # match id
+    df_match = get_comp_with_tree(fs, fd2, match, tol)
+    df_match.to_csv(outfile)
 
-    # Loop through file of observed data...
-    while not done_obs:
-        # Increment line count from observed data file...
-        linecnt += 1
-        if linecnt/1000.0 == int(linecnt/1000.0) and verbose > 1 :
-            print '\r'+'Progress (lines read from observed catalog):  ',linecnt,
-            sys.stdout.flush()
-
-        # Read line from observed data file...
-        obsline = fd2.readline().strip().split(',')
-
-        if obsline == ['']:
-            done_obs = True
-        else:
-            obsra = float(obsline[obsracol])
-            obsdec = float(obsline[obsdeccol])
-            cosd = np.cos(np.radians(obsdec))
-            # Check if there is a match for object coordinates in standard stars file
-            # calculate distance and check if it is within given limit
-            delta2 = np.array((obsra - fs['RA'])*(obsra - fs['RA'])*cosd*cosd+(obsdec-fs['DEC'])*(obsdec-fs['DEC']))
-            mtch = fs.iloc[np.where(delta2 < tol2)]
-            
-            if not mtch.empty:
-                for i, m in mtch.iterrows():
-                    m_id += 1
-                    out_row = pd.DataFrame([[m_id] + mtch.values.tolist()[0] + obsline], columns=outputHeader)
-                    out = out.append(out_row, ignore_index=True)
- 
-    # Change dtype so output file looks nice
-    out.MATCHID = out.MATCHID.astype(int)
-    out.MATCHID_1 = out.MATCHID_1.astype(int)
-    try:
-        out.OBJECT_NUMBER_2 = out.OBJECT_NUMBER_2.astype(int)
-    except ValueError:
-        pass    
-    # Drop matches to output file
-    out.to_csv(outfile, index=False)
-    
-    # close the input object file
-    fd2.close()
-  
 
 def get_new_cuts(in_file):
     from astropy.stats import sigma_clip
@@ -535,10 +531,8 @@ def sigmaClipZPallCCDs(args):
     #read all file and sort and save 
     df.to_csv(objfile, sep=',', index=False)
     
-    matchSortedStdwithObsCats(stdfile, objfile, outfile, 
-                              stdracol=1, stddeccol=2,
-                              obsracol=1, obsdeccol=2,
-                              matchTolArcsec=1, verbose=2)
+    matchSortedStdwithObsCats(stdfile, objfile, outfile,
+                              matchTolArcsec=1.)
 
     are_you_here(outfile)
     sigclipZP, stdsigclipzp, NumStarsClipped, NumStarsAll = get_new_cuts(outfile)
