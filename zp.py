@@ -53,6 +53,7 @@ parser.add_argument('--band', help='band', default='all', type=str)
 
 
 args = parser.parse_args()
+args.magType = args.magType.strip().upper()
 
 # Check what is processed
 i = 0
@@ -101,20 +102,37 @@ if total == 0:
     print "Nothing to do"
     exit()
 
+def cleanup(exposure):
+    for f in glob.glob("*%s*.csv" % (exposure)):
+        os.remove(f)
 
 for no, row in todo.iterrows():
-    print "\n##########\n %i / %i %s \n##########\n" % (no+1, total, row['unitname'])
-   
-    args.filein =  "/deca_archive/"+row['path']
+    print "\n##########\n %i / %i %s band=%s \n##########\n" % (no+1, total, row['unitname'], row['band'])
+    try:
+        args.filein =  "/deca_archive/"+row['path']
+    except TypeError:
+        print "Something wrong with path"
+        continue
+    print args.filein
     args.expnum = int(row['expnum'])
     args.reqnum = row['path'].split("/")[3].split("r")[1][:4]
     args.attnum = int(row['path'].split("/")[-1].split("p")[1])
+    
     # Create catalog
-    mrc = MakeRCat(args)
-    mrc.runIt()
+    try:
+        mrc = MakeRCat(args)
+        mrc.runIt()
+    except IndexError:
+        print "make_red_catalog: list is empty"
+        continue
+    
     # Run expCalib
-    expcalib(args)
-        
+    try:
+        expcalib(args)
+    except IOError:
+        print "Some missing file!"
+        cleanup(args.expnum)
+        continue    
     # Ingest to database
     merged = "Merged_%s_r%sp%02d.csv" % (row['unitname'], args.reqnum, args.attnum)
     args.file = merged
@@ -123,7 +141,7 @@ for no, row in todo.iterrows():
     # Move Merged_* file to ZPs catalog
     os.rename(merged, "./ZPs/"+merged)
     # Clean up
-    for f in glob.glob("*%s*.csv" % (args.expnum)):
-        os.remove(f)
+    cleanup(args.expnum)
+ 
 
 

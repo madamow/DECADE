@@ -161,7 +161,7 @@ def doset(args):
             are_you_here(objlistFile)
             are_you_here(stdlistFile)
 
-            matchSortedStdwithObsCats_tree(stdlistFile, objlistFile, matchlistout,
+            matchSortedStdwithObsCats(stdlistFile, objlistFile, matchlistout,
                                       matchTolArcsec=1.0)
  
 ##################################
@@ -197,7 +197,6 @@ def Read_Sexcatalogfitstocsv(args, fitsname, band):
 
     extension = 2
     hdr = ["OBJECT_NUMBER","RA","DEC","MAG","MAGERR","ZEROPOINT","MAGTYPE", "BAND"]
-      
     fluxType = args.magType.replace('MAG', 'FLUX')
     fluxerrType = args.magType.replace('MAG', 'FLUXERR') 
 
@@ -383,7 +382,7 @@ def get_comp_with_tree(std, obj, out, tol):
     out.index.names = ['MATCHID']
     return out
 
-def matchSortedStdwithObsCats_tree(f1, f2, outfile, matchTolArcsec=1.):
+def matchSortedStdwithObsCats(f1, f2, outfile, matchTolArcsec=1.):
     # Open the standard star CSV file and read the first line as list...
     fs = pd.read_csv(f1)
 
