@@ -8,6 +8,11 @@ from ingest_expCalib_zpt import main as ingest
 import glob
 import os
 
+def cleanup(exposure):
+    for f in glob.glob("*%s*.csv" % (exposure)):
+        os.remove(f)
+
+
 dbh = DesDbi(None, 'db-decade', retry=True)
 cur = dbh.cursor()
 
@@ -74,13 +79,13 @@ while query_db:
         temp = pd.DataFrame(cur.fetchall(), columns=['expnum', 'band'])
     except ValueError:
         temp = pd.DataFrame(columns=['expnum', 'band'])
-    if temp.shape[0]<1000:
+    if temp.shape[0]!=1000:
         query_db = False
 
     # Add paths to files 
     unitnames = ['D00'+str(e) for e  in temp.expnum.values]
     path_query = "select unitname, archive_path from pfw_attempt a, task t,pfw_request r where r.reqnum=a.reqnum "
-    path_query += "and t.id=a.task_id and r.project='DEC' and unitname in ('%s')" % ("','".join(unitnames))
+    path_query += "and t.id=a.task_id and status=0 and r.project='DEC' and unitname in ('%s')" % ("','".join(unitnames))
 
     cur.execute(path_query)
     path_df = pd.DataFrame(cur.fetchall(), columns=['unitname', 'path'])
@@ -96,27 +101,30 @@ while query_db:
 
 dbh.close()
 
+# Drop exposures that failed before 
+fails = pd.read_csv('zp_fail')
+for i, item in fails.iterrows():
+    todo = todo[todo['expnum']!=item['expnum']]
+todo = todo.reset_index()
 total = todo.shape[0]
-
 if total == 0:
     print "Nothing to do"
     exit()
 
-def cleanup(exposure):
-    for f in glob.glob("*%s*.csv" % (exposure)):
-        os.remove(f)
+fails_file=open('zp_fail', 'a')
 
 for no, row in todo.iterrows():
     print "\n##########\n %i / %i %s band=%s \n##########\n" % (no+1, total, row['unitname'], row['band'])
+    args.expnum = int(row['expnum'])
+    args.reqnum = row['path'].split("/")[3].split("r")[1][:4]
+    args.attnum = int(row['path'].split("/")[-1].split("p")[1])
     try:
         args.filein =  "/deca_archive/"+row['path']
     except TypeError:
         print "Something wrong with path"
+        fails_file.write(str(args.expnum)+"\n")
         continue
     print args.filein
-    args.expnum = int(row['expnum'])
-    args.reqnum = row['path'].split("/")[3].split("r")[1][:4]
-    args.attnum = int(row['path'].split("/")[-1].split("p")[1])
     
     # Create catalog
     try:
@@ -124,24 +132,32 @@ for no, row in todo.iterrows():
         mrc.runIt()
     except IndexError:
         print "make_red_catalog: list is empty"
+        fails_file.write(str(args.expnum)+"\n")
         continue
     
     # Run expCalib
     try:
         expcalib(args)
-    except IOError:
-        print "Some missing file!"
+    except:
+        print "Error in expCalib"
+        fails_file.write(str(args.expnum)+"\n")
         cleanup(args.expnum)
-        continue    
+        continue   
+
     # Ingest to database
     merged = "Merged_%s_r%sp%02d.csv" % (row['unitname'], args.reqnum, args.attnum)
     args.file = merged
-    ingest(args)
+    
+    try:
+        ingest(args)
+    except cx_Oracle.IntegrityError:
+        pass
         
     # Move Merged_* file to ZPs catalog
     os.rename(merged, "./ZPs/"+merged)
     # Clean up
     cleanup(args.expnum)
- 
+
+fails_file.close() 
 
 
