@@ -50,7 +50,7 @@ def main(args):
  #   exit()
 
     # --
-    #Onefile(args)
+ #   Onefile(args)
 
     # --
     # plot ra,dec of matched stars for ALL CCDs
@@ -359,7 +359,10 @@ def get_comp_with_tree(std, obj, out, tol):
     a1 = np.column_stack((std['RA'],std['DEC']))
     a2 = np.column_stack((obj['RA'], obj['DEC']))
 
-    pairs_ind = find_neighbour_with_tree(a2, a1, tol)
+    try:
+         pairs_ind = find_neighbour_with_tree(a2, a1, tol)
+    except ValueError:
+         pairs_ind = []
 
     for j,i in pairs_ind:
         temp = pd.Series()
