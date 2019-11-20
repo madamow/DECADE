@@ -4,6 +4,7 @@ import string
 import fitsio
 import glob
 import sys
+import argparse
 
 # This version icludes changes that allow to import it as funciton as pass all arguments
 class MakeRCat():
@@ -85,5 +86,11 @@ class MakeRCat():
         print '\n Finish with make_red_catlist.py \n'
         
 if __name__ == "__main__":
-    mrc = MakeRCat()
+
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument('--filein', help='create catalog for this file', default='.', type=str)
+    parser.add_argument('--outdir', help='dir is the production directory', default='.', type=str)
+    args = parser.parse_args() 
+
+    mrc = MakeRCat(args)
     mrc.runIt()
